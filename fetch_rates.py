@@ -1,11 +1,9 @@
 from playwright.sync_api import sync_playwright
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 import json
 import re
+import requests
 import os
-
-load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -13,11 +11,24 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 results = {}
 
 
+def make_browser(p):
+    browser = p.chromium.launch(headless=True)
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        viewport={"width": 1280, "height": 720},
+        locale="en-SG",
+        timezone_id="Asia/Singapore",
+    )
+    page = context.new_page()
+    page.add_init_script(
+        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    return browser, page
+
+
 def fetch_wise():
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+            browser, page = make_browser(p)
             page.goto(
                 "https://wise.com/us/currency-converter/sgd-to-myr-rate", timeout=20000)
             page.wait_for_timeout(4000)
@@ -36,8 +47,7 @@ def fetch_wise():
 def fetch_cimb():
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False)
-            page = browser.new_page()
+            browser, page = make_browser(p)
             page.goto("https://www.cimbclicks.com.sg/sgd-to-myr", timeout=30000)
             page.wait_for_timeout(6000)
             body = page.inner_text("body")
@@ -55,8 +65,7 @@ def fetch_cimb():
 def fetch_western_union():
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False)
-            page = browser.new_page()
+            browser, page = make_browser(p)
             page.goto(
                 "https://www.westernunion.com/sg/en/currency-converter/sgd-to-myr-rate.html", timeout=30000)
             page.wait_for_timeout(6000)
@@ -85,7 +94,6 @@ def fetch_western_union():
 
 def save_to_supabase():
     try:
-        import requests
         url = f"{SUPABASE_URL}/rest/v1/exchange_rates"
         headers = {
             "apikey": SUPABASE_KEY,
