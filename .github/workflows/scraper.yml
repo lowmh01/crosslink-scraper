@@ -2,7 +2,7 @@ name: Fetch Exchange Rates
 
 on:
   schedule:
-    - cron: '0 * * * *'  # 每小時跑一次
+    - cron: '*/30 * * * *' 
   workflow_dispatch:  # 允許手動觸發
 
 jobs:
