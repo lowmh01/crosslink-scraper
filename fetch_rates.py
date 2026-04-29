@@ -1,9 +1,11 @@
+import os
+import requests
+import re
+import json
 from playwright.sync_api import sync_playwright
 from datetime import datetime, timezone
-import json
-import re
-import requests
-import os
+from dotenv import load_dotenv
+load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -92,6 +94,35 @@ def fetch_western_union():
         print(f"✗ Western Union: {e}")
 
 
+def fetch_panda_remit():
+    try:
+        with sync_playwright() as p:
+            browser, page = make_browser(p)
+            page.goto(
+                "https://www.pandaremit.com/en/sgp/send-money-to-malaysia", timeout=30000)
+            page.wait_for_timeout(8000)  # ← 改成 8000
+            body = page.inner_text("body")
+            browser.close()
+
+        # 直接找 "3.XXXX MYR" 的格式
+        match = re.search(r'(\d+\.\d{4})MYR', body)
+        if match:
+            rate = float(match.group(1))
+        else:
+            # fallback
+            matches = re.findall(r'(\d+\.\d{4,5})', body)
+            rate = next((float(m)
+                        for m in matches if 3.0 < float(m) < 4.0), None)
+
+        results["panda_remit"] = {"rate": rate,
+                                  "fee": "Low fee", "status": "ok"}
+        print(f"✓ Panda Remit: {rate}")
+    except Exception as e:
+        results["panda_remit"] = {"rate": None,
+                                  "status": "error", "error": str(e)}
+        print(f"✗ Panda Remit: {e}")
+
+
 def save_to_supabase():
     try:
         url = f"{SUPABASE_URL}/rest/v1/exchange_rates"
@@ -106,6 +137,7 @@ def save_to_supabase():
             "wise": results.get("wise", {}).get("rate"),
             "cimb": results.get("cimb", {}).get("rate"),
             "western_union": results.get("western_union", {}).get("rate"),
+            "panda_remit": results.get("panda_remit", {}).get("rate"),
         }
         res = requests.post(url, json=row, headers=headers)
         if res.status_code in [200, 201]:
@@ -122,6 +154,7 @@ if __name__ == "__main__":
     fetch_wise()
     fetch_cimb()
     fetch_western_union()
+    fetch_panda_remit()
     print("\n── Results ──")
     print(json.dumps(results, indent=2))
     save_to_supabase()
