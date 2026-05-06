@@ -56,19 +56,26 @@ def fetch_route(route_key):
     origin = route["origin"]
     destination = route["destination"]
 
+    departure = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
     url = (
         f"https://router.hereapi.com/v8/routes"
         f"?transportMode=car"
         f"&origin={origin[0]},{origin[1]}"
         f"&destination={destination[0]},{destination[1]}"
         f"&return=summary,travelSummary"
-        f"&departureTime=now"
+        f"&departureTime={departure}"
         f"&apiKey={HERE_API_KEY}"
     )
 
     try:
         res = requests.get(url, timeout=10)
-        res.raise_for_status()
+        print(f"{route_key}: HTTP {res.status_code}")
+
+        if not res.ok:
+            print(f"{route_key}: error response: {res.text}")
+            return fallback_status()
+
         data = res.json()
 
         section = data.get("routes", [{}])[0].get("sections", [{}])[0]
@@ -107,7 +114,7 @@ def fetch_route(route_key):
         }
 
     except Exception as e:
-        print(f"{route_key}: error {e}, using fallback")
+        print(f"{route_key}: exception {e}, using fallback")
         return fallback_status()
 
 
