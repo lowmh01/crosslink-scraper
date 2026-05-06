@@ -4,7 +4,7 @@ from supabase import create_client
 from datetime import datetime, timezone
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_KEY"]
+SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 HERE_API_KEY = os.environ["HERE_API_KEY"]
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
