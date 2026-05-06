@@ -56,7 +56,7 @@ def fetch_route(route_key):
     origin = route["origin"]
     destination = route["destination"]
 
-    departure = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    departure = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     url = (
         f"https://router.hereapi.com/v8/routes"
@@ -78,34 +78,45 @@ def fetch_route(route_key):
 
         data = res.json()
 
-        section = data.get("routes", [{}])[0].get("sections", [{}])[0]
-        if not section:
-            print(f"{route_key}: no section, using fallback")
+        # Safe extraction — check each level explicitly
+        routes_list = data.get("routes")
+        if not routes_list or len(routes_list) == 0:
+            print(f"{route_key}: no routes in response, using fallback")
             return fallback_status()
 
-        travel = section.get("travelSummary", {})
+        sections_list = routes_list[0].get("sections")
+        if not sections_list or len(sections_list) == 0:
+            print(f"{route_key}: no sections in response, using fallback")
+            return fallback_status()
+
+        section = sections_list[0]
+        travel = section.get("travelSummary")
+        if not travel:
+            print(f"{route_key}: no travelSummary, using fallback")
+            return fallback_status()
+
         duration = travel.get("duration")
         base = travel.get("baseDuration")
 
         if not duration or not base or base == 0:
-            print(f"{route_key}: missing duration, using fallback")
+            print(f"{route_key}: missing duration or base, using fallback")
             return fallback_status()
 
         ratio = base / duration
         delay = round((duration - base) / 60)
 
         if ratio > 0.90:
-            label, color = "Clear", "green"
+            status_label, color = "Clear", "green"
         elif ratio > 0.65:
-            label, color = "Moderate", "amber"
+            status_label, color = "Moderate", "amber"
         elif ratio > 0.40:
-            label, color = "Heavy", "red"
+            status_label, color = "Heavy", "red"
         else:
-            label, color = "Very Heavy", "red"
+            status_label, color = "Very Heavy", "red"
 
-        print(f"{route_key}: {label} (ratio={ratio:.2f}, delay={delay}min)")
+        print(f"{route_key}: {status_label} (ratio={ratio:.2f}, duration={duration}s, base={base}s, delay={delay}min)")
         return {
-            "label": label,
+            "label": status_label,
             "color": color,
             "duration": duration,
             "base": base,
@@ -135,7 +146,7 @@ def main():
             "source": result["source"],
         })
 
-    response = supabase.table("checkpoint_traffic").insert(rows).execute()
+    supabase.table("checkpoint_traffic").insert(rows).execute()
     print(f"Inserted {len(rows)} rows into Supabase")
     print(f"Done at {datetime.now(timezone.utc).isoformat()}")
 
