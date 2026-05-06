@@ -24,6 +24,6 @@ jobs:
       - name: Run fetch_checkpoint.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_KEY }}
           HERE_API_KEY: ${{ secrets.HERE_API_KEY }}
         run: python fetch_checkpoint.py
