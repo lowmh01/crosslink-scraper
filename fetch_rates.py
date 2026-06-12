@@ -132,13 +132,30 @@ def save_to_supabase():
             "Content-Type": "application/json",
             "Prefer": "return=minimal"
         }
+
+        # 先拿上一筆數據
+        prev_res = requests.get(
+            f"{url}?order=fetched_at.desc&limit=1",
+            headers=headers
+        )
+        prev = prev_res.json()[
+            0] if prev_res.status_code == 200 and prev_res.json() else {}
+
+        # 哪個是 None 就用上一筆補
+        def fallback(platform):
+            val = results.get(platform, {}).get("rate")
+            if val is None:
+                return prev.get(platform)
+            return val
+
         row = {
             "fetched_at": datetime.now(timezone.utc).isoformat(),
-            "wise": results.get("wise", {}).get("rate"),
-            "cimb": results.get("cimb", {}).get("rate"),
-            "western_union": results.get("western_union", {}).get("rate"),
-            "panda_remit": results.get("panda_remit", {}).get("rate"),
+            "wise": fallback("wise"),
+            "cimb": fallback("cimb"),
+            "western_union": fallback("western_union"),
+            "panda_remit": fallback("panda_remit"),
         }
+
         res = requests.post(url, json=row, headers=headers)
         if res.status_code in [200, 201]:
             print(f"\n✓ Saved to Supabase: {row}")
