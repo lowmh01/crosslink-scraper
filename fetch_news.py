@@ -71,35 +71,64 @@ RELEVANCE_KEYWORDS = [
 ]
 
 # Pre-compile for speed
-_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE)
-                for kw in RELEVANCE_KEYWORDS]
+_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE) for kw in RELEVANCE_KEYWORDS]
+
+# ---------------------------------------------------------------------------
+# EXCLUSION KEYWORDS — reject articles that are crime/incident news,
+# not useful cross-border information for commuters
+# ---------------------------------------------------------------------------
+EXCLUDE_KEYWORDS = [
+    # Crime / enforcement
+    "heroin", "methamphetamine", "cocaine", "drug", "cannabis",
+    "smuggl", "contraband", "cigarettes", "duty-unpaid",
+    "jailed", "sentenced", "arrested", "charged", "prison",
+    "murder", "assault", "robbery", "theft", "scam",
+    # Accidents / incidents
+    "caught fire", "fire broke", "accident", "crash",
+    "speed camera", "speeding",
+    # Other noise
+    "casino", "gambling",
+]
+
+_exclude_patterns = [re.compile(re.escape(kw), re.IGNORECASE) for kw in EXCLUDE_KEYWORDS]
 
 
 def is_relevant(title, description):
-    """Return True if title or description contains at least one relevance keyword."""
+    """Return True if relevant AND not excluded."""
     text = f"{title} {description}"
-    return any(p.search(text) for p in _kw_patterns)
+    # Must match at least one corridor keyword
+    if not any(p.search(text) for p in _kw_patterns):
+        return False
+    # Must NOT match any exclusion keyword
+    if any(p.search(text) for p in _exclude_patterns):
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
 # AUTO-TAGGING
 # ---------------------------------------------------------------------------
 TAG_RULES = [
-    # Order matters — first match wins. Checkpoint before Transport
-    # so enforcement stories at checkpoints don't get tagged as Transport.
-    ("Checkpoint", ["checkpoint", "causeway", "second link", "immigration",
-                    "customs", "smuggl", "contraband", "ica ",
-                    "congestion", "queue", "jam", "crossing"]),
+    # Order matters — first match wins.
+    # Traffic: things that directly affect your commute TODAY
+    ("Traffic",    ["congestion", "queue", "jam", "speed camera", "road works",
+                    "closure", "delay", "wait time", "heavy traffic", "bke"]),
+    # Transport: infrastructure and route changes
     ("Transport",  ["rts link", "ktm", "shuttle", "bukit chagar", "woodlands north",
-                    "transtar", "causeway link", "walkway"]),
+                    "transtar", "causeway link", "walkway", "new route"]),
+    # VEP: driving permits and vehicle fees
     ("VEP",        ["vep", "vehicle entry permit", "autopass", "rfid",
                     "foreign vehicle", "road charge"]),
+    # Economy: business, property, investment
     ("Economy",    ["economic zone", "sez", "investment", "real estate",
                     "property", "trade"]),
+    # Policy: government, bilateral agreements
     ("Policy",     ["bilateral", "agreement", "diplomatic",
                     "malaysia singapore", "singapore malaysia"]),
+    # Finance: currency, remittance
     ("Finance",    ["sgd", "myr", "ringgit", "remittance",
                     "duitnow", "paynow", "wise", "instarem"]),
+    # Everything else (smuggling, incidents, crime) falls to default "News"
 ]
 
 _tag_patterns = [
@@ -171,8 +200,7 @@ def fetch_articles(feed_config):
 
     for entry in d.entries:
         title = (entry.get("title") or "").strip()
-        description = (entry.get("summary") or entry.get(
-            "description") or "").strip()
+        description = (entry.get("summary") or entry.get("description") or "").strip()
         link = entry.get("link", "")
 
         if not title or not link:
@@ -241,8 +269,7 @@ def get_existing_articles():
     resp.raise_for_status()
     rows = resp.json()
     urls = {row["cta_url"] for row in rows if row.get("cta_url")}
-    titles = {normalize_title(row["title"])
-              for row in rows if row.get("title")}
+    titles = {normalize_title(row["title"]) for row in rows if row.get("title")}
     return urls, titles
 
 
@@ -283,8 +310,7 @@ def cleanup_expired():
         "Content-Type": "application/json",
         "Prefer": "return=minimal",
     }
-    resp = requests.patch(url, headers=headers, json={
-                          "is_active": False}, timeout=30)
+    resp = requests.patch(url, headers=headers, json={"is_active": False}, timeout=30)
     if resp.status_code in (200, 204):
         print("  ✓ Expired old news deactivated")
     else:
@@ -296,15 +322,13 @@ def cleanup_expired():
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 50)
-    print(
-        f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("=" * 50)
 
     # 1. Fetch existing URLs + titles for dedup
     print("\n[1/4] Loading existing articles for dedup...")
     existing_urls, existing_titles = get_existing_articles()
-    print(
-        f"  Found {len(existing_urls)} existing news URLs, {len(existing_titles)} titles")
+    print(f"  Found {len(existing_urls)} existing news URLs, {len(existing_titles)} titles")
 
     # 2. Fetch from all RSS feeds
     print("\n[2/4] Fetching RSS feeds...")
