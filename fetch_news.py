@@ -175,7 +175,6 @@ def fetch_articles(feed_config):
         title = html.unescape(title)
 
         # Google News titles end with " - Source Name"
-        # Capture source before stripping
         source_match = re.search(r"\s*[-–—]\s*([A-Z][\w\s.'']+)$", title)
         source = source_match.group(1).strip() if source_match else None
         title = re.sub(r"\s*[-–—]\s*[A-Z][\w\s.'']+$", "", title).strip()
