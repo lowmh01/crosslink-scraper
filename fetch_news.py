@@ -71,8 +71,7 @@ RELEVANCE_KEYWORDS = [
 ]
 
 # Pre-compile for speed
-_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE)
-                for kw in RELEVANCE_KEYWORDS]
+_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE) for kw in RELEVANCE_KEYWORDS]
 
 # ---------------------------------------------------------------------------
 # EXCLUSION KEYWORDS — reject articles that are crime/incident news,
@@ -91,8 +90,7 @@ EXCLUDE_KEYWORDS = [
     "casino", "gambling",
 ]
 
-_exclude_patterns = [re.compile(re.escape(kw), re.IGNORECASE)
-                     for kw in EXCLUDE_KEYWORDS]
+_exclude_patterns = [re.compile(re.escape(kw), re.IGNORECASE) for kw in EXCLUDE_KEYWORDS]
 
 
 def is_relevant(title, description):
@@ -161,8 +159,7 @@ def fetch_articles(feed_config):
 
     for entry in d.entries:
         title = (entry.get("title") or "").strip()
-        description = (entry.get("summary") or entry.get(
-            "description") or "").strip()
+        description = (entry.get("summary") or entry.get("description") or "").strip()
         link = entry.get("link", "")
 
         if not title or not link:
@@ -177,12 +174,11 @@ def fetch_articles(feed_config):
         description = html.unescape(description)
         title = html.unescape(title)
 
-        # Google News titles end with " - Source Name", strip it
+        # Google News titles end with " - Source Name"
+        # Capture source before stripping
+        source_match = re.search(r"\s*[-–—]\s*([A-Z][\w\s.'']+)$", title)
+        source = source_match.group(1).strip() if source_match else None
         title = re.sub(r"\s*[-–—]\s*[A-Z][\w\s.'']+$", "", title).strip()
-
-        # Truncate long descriptions
-        if len(description) > 300:
-            description = description[:297] + "..."
 
         # Relevance filter
         if needs_filter and not is_relevant(title, description):
@@ -193,7 +189,7 @@ def fetch_articles(feed_config):
         articles.append({
             "type": "news",
             "title": title,
-            "description": description,
+            "description": source,
             "cta_url": link,
             "image_url": image,
             "tag": None,
@@ -230,8 +226,7 @@ def get_existing_articles():
     resp.raise_for_status()
     rows = resp.json()
     urls = {row["cta_url"] for row in rows if row.get("cta_url")}
-    titles = {normalize_title(row["title"])
-              for row in rows if row.get("title")}
+    titles = {normalize_title(row["title"]) for row in rows if row.get("title")}
     return urls, titles
 
 
@@ -272,8 +267,7 @@ def cleanup_expired():
         "Content-Type": "application/json",
         "Prefer": "return=minimal",
     }
-    resp = requests.patch(url, headers=headers, json={
-                          "is_active": False}, timeout=30)
+    resp = requests.patch(url, headers=headers, json={"is_active": False}, timeout=30)
     if resp.status_code in (200, 204):
         print("  ✓ Expired old news deactivated")
     else:
@@ -285,15 +279,13 @@ def cleanup_expired():
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 50)
-    print(
-        f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("=" * 50)
 
     # 1. Fetch existing URLs + titles for dedup
     print("\n[1/4] Loading existing articles for dedup...")
     existing_urls, existing_titles = get_existing_articles()
-    print(
-        f"  Found {len(existing_urls)} existing news URLs, {len(existing_titles)} titles")
+    print(f"  Found {len(existing_urls)} existing news URLs, {len(existing_titles)} titles")
 
     # 2. Fetch from all RSS feeds
     print("\n[2/4] Fetching RSS feeds...")
