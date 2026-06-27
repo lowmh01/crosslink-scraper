@@ -218,16 +218,27 @@ def fetch_articles(feed_config):
 # ---------------------------------------------------------------------------
 # SUPABASE
 # ---------------------------------------------------------------------------
-def get_existing_urls():
-    """Fetch all existing news cta_urls from explore_items to avoid duplicates."""
-    url = f"{SUPABASE_URL}/rest/v1/explore_items?type=eq.news&select=cta_url"
+def normalize_title(title):
+    """Normalize title for fuzzy dedup — lowercase, strip punctuation, first 50 chars."""
+    t = re.sub(r"[^a-z0-9 ]", "", title.lower()).strip()
+    return t[:50]
+
+
+# ---------------------------------------------------------------------------
+def get_existing_articles():
+    """Fetch existing news URLs and titles from explore_items for dedup."""
+    url = f"{SUPABASE_URL}/rest/v1/explore_items?type=eq.news&select=cta_url,title"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
     }
     resp = requests.get(url, headers=headers, timeout=30)
     resp.raise_for_status()
-    return {row["cta_url"] for row in resp.json() if row.get("cta_url")}
+    rows = resp.json()
+    urls = {row["cta_url"] for row in rows if row.get("cta_url")}
+    titles = {normalize_title(row["title"])
+              for row in rows if row.get("title")}
+    return urls, titles
 
 
 def insert_articles(articles):
@@ -284,10 +295,11 @@ def main():
         f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("=" * 50)
 
-    # 1. Fetch existing URLs for dedup
+    # 1. Fetch existing URLs + titles for dedup
     print("\n[1/4] Loading existing articles for dedup...")
-    existing_urls = get_existing_urls()
-    print(f"  Found {len(existing_urls)} existing news URLs")
+    existing_urls, existing_titles = get_existing_articles()
+    print(
+        f"  Found {len(existing_urls)} existing news URLs, {len(existing_titles)} titles")
 
     # 2. Fetch from all RSS feeds
     print("\n[2/4] Fetching RSS feeds...")
@@ -298,17 +310,22 @@ def main():
 
     print(f"\n  Total relevant articles: {len(all_articles)}")
 
-    # 3. Deduplicate
+    # 3. Deduplicate by URL + title similarity
     print("\n[3/4] Deduplicating...")
     seen_urls = set()
+    seen_titles = set()
     new_articles = []
     for article in all_articles:
         url = article["cta_url"]
-        if url in existing_urls:
+        norm_title = normalize_title(article["title"])
+        # Skip if URL already in DB or batch
+        if url in existing_urls or url in seen_urls:
             continue
-        if url in seen_urls:
+        # Skip if a very similar title already exists (same story, different source)
+        if norm_title in existing_titles or norm_title in seen_titles:
             continue
         seen_urls.add(url)
+        seen_titles.add(norm_title)
         new_articles.append(article)
 
     print(f"  New articles to insert: {len(new_articles)}")
