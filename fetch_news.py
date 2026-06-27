@@ -71,7 +71,8 @@ RELEVANCE_KEYWORDS = [
 ]
 
 # Pre-compile for speed
-_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE) for kw in RELEVANCE_KEYWORDS]
+_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE)
+                for kw in RELEVANCE_KEYWORDS]
 
 # ---------------------------------------------------------------------------
 # EXCLUSION KEYWORDS — reject articles that are crime/incident news,
@@ -90,7 +91,8 @@ EXCLUDE_KEYWORDS = [
     "casino", "gambling",
 ]
 
-_exclude_patterns = [re.compile(re.escape(kw), re.IGNORECASE) for kw in EXCLUDE_KEYWORDS]
+_exclude_patterns = [re.compile(re.escape(kw), re.IGNORECASE)
+                     for kw in EXCLUDE_KEYWORDS]
 
 
 def is_relevant(title, description):
@@ -103,47 +105,6 @@ def is_relevant(title, description):
     if any(p.search(text) for p in _exclude_patterns):
         return False
     return True
-
-
-# ---------------------------------------------------------------------------
-# AUTO-TAGGING
-# ---------------------------------------------------------------------------
-TAG_RULES = [
-    # Order matters — first match wins.
-    # Traffic: things that directly affect your commute TODAY
-    ("Traffic",    ["congestion", "queue", "jam", "speed camera", "road works",
-                    "closure", "delay", "wait time", "heavy traffic", "bke"]),
-    # Transport: infrastructure and route changes
-    ("Transport",  ["rts link", "ktm", "shuttle", "bukit chagar", "woodlands north",
-                    "transtar", "causeway link", "walkway", "new route"]),
-    # VEP: driving permits and vehicle fees
-    ("VEP",        ["vep", "vehicle entry permit", "autopass", "rfid",
-                    "foreign vehicle", "road charge"]),
-    # Economy: business, property, investment
-    ("Economy",    ["economic zone", "sez", "investment", "real estate",
-                    "property", "trade"]),
-    # Policy: government, bilateral agreements
-    ("Policy",     ["bilateral", "agreement", "diplomatic",
-                    "malaysia singapore", "singapore malaysia"]),
-    # Finance: currency, remittance
-    ("Finance",    ["sgd", "myr", "ringgit", "remittance",
-                    "duitnow", "paynow", "wise", "instarem"]),
-    # Everything else (smuggling, incidents, crime) falls to default "News"
-]
-
-_tag_patterns = [
-    (tag, [re.compile(re.escape(kw), re.IGNORECASE) for kw in kws])
-    for tag, kws in TAG_RULES
-]
-
-
-def auto_tag(title, description):
-    """Return the best matching tag, or 'News' as default."""
-    text = f"{title} {description}"
-    for tag, patterns in _tag_patterns:
-        if any(p.search(text) for p in patterns):
-            return tag
-    return "News"
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +161,8 @@ def fetch_articles(feed_config):
 
     for entry in d.entries:
         title = (entry.get("title") or "").strip()
-        description = (entry.get("summary") or entry.get("description") or "").strip()
+        description = (entry.get("summary") or entry.get(
+            "description") or "").strip()
         link = entry.get("link", "")
 
         if not title or not link:
@@ -226,7 +188,6 @@ def fetch_articles(feed_config):
         if needs_filter and not is_relevant(title, description):
             continue
 
-        tag = auto_tag(title, description)
         image = extract_image(entry)
 
         articles.append({
@@ -235,9 +196,9 @@ def fetch_articles(feed_config):
             "description": description,
             "cta_url": link,
             "image_url": image,
-            "tag": tag,
-            "location": "Both",  # Cross-border news is always Both
-            "is_active": True,
+            "tag": None,
+            "location": "Both",
+            "is_active": False,
             "is_featured": False,
             "created_at": published.isoformat(),
             # Auto-expire news after 30 days
@@ -269,7 +230,8 @@ def get_existing_articles():
     resp.raise_for_status()
     rows = resp.json()
     urls = {row["cta_url"] for row in rows if row.get("cta_url")}
-    titles = {normalize_title(row["title"]) for row in rows if row.get("title")}
+    titles = {normalize_title(row["title"])
+              for row in rows if row.get("title")}
     return urls, titles
 
 
@@ -310,7 +272,8 @@ def cleanup_expired():
         "Content-Type": "application/json",
         "Prefer": "return=minimal",
     }
-    resp = requests.patch(url, headers=headers, json={"is_active": False}, timeout=30)
+    resp = requests.patch(url, headers=headers, json={
+                          "is_active": False}, timeout=30)
     if resp.status_code in (200, 204):
         print("  ✓ Expired old news deactivated")
     else:
@@ -322,13 +285,15 @@ def cleanup_expired():
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 50)
-    print(f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(
+        f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("=" * 50)
 
     # 1. Fetch existing URLs + titles for dedup
     print("\n[1/4] Loading existing articles for dedup...")
     existing_urls, existing_titles = get_existing_articles()
-    print(f"  Found {len(existing_urls)} existing news URLs, {len(existing_titles)} titles")
+    print(
+        f"  Found {len(existing_urls)} existing news URLs, {len(existing_titles)} titles")
 
     # 2. Fetch from all RSS feeds
     print("\n[2/4] Fetching RSS feeds...")
