@@ -13,6 +13,7 @@ Environment variables:
 
 import os
 import re
+import html
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
@@ -33,8 +34,8 @@ SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 RSS_FEEDS = [
     # Google News — broad search, must filter
     {
-        "name": "Google News (JB SG)",
-        "url": "https://news.google.com/rss/search?q=%22johor+bahru%22+OR+%22johor-singapore%22+OR+%22JB+SG%22+OR+causeway+OR+%22second+link%22+singapore&hl=en&gl=SG&ceid=SG:en",
+        "name": "Google News (MY-SG)",
+        "url": "https://news.google.com/rss/search?q=%22malaysia+singapore%22+OR+%22causeway%22+OR+%22second+link%22+OR+%22cross-border%22+OR+%22work+pass%22+OR+%22SGD+MYR%22&hl=en&gl=SG&ceid=SG:en",
         "needs_filter": True,
     },
     {
@@ -54,12 +55,6 @@ RSS_FEEDS = [
         "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml&category=6936",
         "needs_filter": True,
     },
-    # Malay Mail — Malaysia section, must filter
-    {
-        "name": "Malay Mail",
-        "url": "https://www.malaymail.com/feed/rss/malaysia",
-        "needs_filter": True,
-    },
     # The Star — Nation section
     {
         "name": "The Star",
@@ -75,29 +70,30 @@ RSS_FEEDS = [
 # We use groups so compound terms like "work pass" match as a phrase.
 
 RELEVANCE_KEYWORDS = [
-    # Geography
-    "johor bahru", "johor", "jb-sg", "jb sg", "iskandar",
+    # Cross-border geography (not pure JB local)
+    "jb-sg", "jb sg", "johor-singapore", "johor singapore",
     # Border crossings
     "causeway", "second link", "woodlands checkpoint", "tuas checkpoint",
     "customs", "immigration checkpoint", "bke", "aye tuas",
     # Transport
     "rts link", "ktm shuttle", "tebrau", "bukit chagar", "woodlands north",
     "transtar", "causeway link", "bus 170", "cw1", "cw2",
-    # Policy
+    # Policy — bilateral / cross-border
     "vep", "vehicle entry permit", "autopass",
     "malaysia singapore", "singapore malaysia", "bilateral",
-    # Work
+    # Work in SG
     "work pass", "employment pass", "s pass", "work permit",
     "foreign worker", "malaysian worker",
-    # Money
-    "sgd myr", "myr sgd", "ringgit", "exchange rate",
-    "cpf", "remittance",
-    # Catch-alls with Singapore+Malaysia context
+    # Money — SG-MY specific
+    "sgd myr", "myr sgd", "exchange rate",
+    "cpf", "remittance", "duitnow",
+    # Catch-alls
     "cross-border", "cross border",
 ]
 
 # Pre-compile for speed
-_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE) for kw in RELEVANCE_KEYWORDS]
+_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE)
+                for kw in RELEVANCE_KEYWORDS]
 
 
 def is_relevant(title, description):
@@ -147,7 +143,7 @@ def auto_tag(title, description):
 # AUTO-LOCATION
 # ---------------------------------------------------------------------------
 MY_KEYWORDS = re.compile(
-    r"johor|malaysia|jb|iskandar|tebrau|bukit chagar|ringgit|malay mail|bernama|the star"
+    r"johor|malaysia|jb|iskandar|tebrau|bukit chagar|ringgit|bernama|the star"
     r"|causeway|second link",
     re.IGNORECASE,
 )
@@ -226,7 +222,8 @@ def fetch_articles(feed_config):
 
     for entry in d.entries:
         title = (entry.get("title") or "").strip()
-        description = (entry.get("summary") or entry.get("description") or "").strip()
+        description = (entry.get("summary") or entry.get(
+            "description") or "").strip()
         link = entry.get("link", "")
 
         if not title or not link:
@@ -236,8 +233,14 @@ def fetch_articles(feed_config):
         if published < cutoff:
             continue
 
-        # Strip HTML from description
+        # Strip HTML tags and decode entities
         description = re.sub(r"<[^>]+>", "", description).strip()
+        description = html.unescape(description)
+        title = html.unescape(title)
+
+        # Google News titles end with " - Source Name", strip it
+        title = re.sub(r"\s*[-–—]\s*[A-Z][\w\s.'']+$", "", title).strip()
+
         # Truncate long descriptions
         if len(description) > 300:
             description = description[:297] + "..."
@@ -321,7 +324,8 @@ def cleanup_expired():
         "Content-Type": "application/json",
         "Prefer": "return=minimal",
     }
-    resp = requests.patch(url, headers=headers, json={"is_active": False}, timeout=30)
+    resp = requests.patch(url, headers=headers, json={
+                          "is_active": False}, timeout=30)
     if resp.status_code in (200, 204):
         print("  ✓ Expired old news deactivated")
     else:
@@ -333,7 +337,8 @@ def cleanup_expired():
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 50)
-    print(f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(
+        f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("=" * 50)
 
     # 1. Fetch existing URLs for dedup
