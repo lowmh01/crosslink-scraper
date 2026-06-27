@@ -1,33 +1,31 @@
-name: Fetch Exchange Rates & Checkpoint Traffic
+name: Fetch Exchange Rates
+
 on:
   schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+    - cron: '*/10 * * * *' 
+  workflow_dispatch:  # 允許手動觸發
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4.2.2
+
       - name: Set up Python
         uses: actions/setup-python@v5.6.0
         with:
           python-version: '3.14'
+
       - name: Install dependencies
         run: |
           pip install playwright requests python-dotenv
           playwright install chromium
           playwright install-deps chromium
-      - name: Fetch exchange rates
+
+      - name: Run scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python fetch_rates.py
-      - name: Fetch checkpoint traffic
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          LTA_API_KEY: ${{ secrets.LTA_API_KEY }}
-        run: python fetch_checkpoint.py

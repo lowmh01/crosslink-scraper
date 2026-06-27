@@ -1,0 +1,24 @@
+name: Fetch News RSS
+on:
+  schedule:
+    - cron: '15 */6 * * *'    # Every 6 hours at :15 (offset to avoid GH Actions peak)
+  workflow_dispatch:           # Allow manual trigger
+jobs:
+  fetch-news:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install feedparser requests
+      - name: Fetch news
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python fetch_news.py
