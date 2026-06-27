@@ -32,34 +32,16 @@ SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 # needs_filter=False → every article is assumed relevant (niche feed)
 
 RSS_FEEDS = [
-    # Google News — broad search, must filter
+    # Google News — tight corridor-specific search
     {
         "name": "Google News (MY-SG corridor)",
-        "url": "https://news.google.com/rss/search?q=%22johor+singapore%22+OR+%22causeway+checkpoint%22+OR+%22woodlands+checkpoint%22+OR+%22tuas+checkpoint%22+OR+%22cross-border%22+OR+%22VEP+singapore%22+OR+%22work+pass+singapore%22&hl=en&gl=SG&ceid=SG:en",
+        "url": "https://news.google.com/rss/search?q=%22johor+singapore%22+OR+%22causeway+checkpoint%22+OR+%22woodlands+checkpoint%22+OR+%22tuas+checkpoint%22+OR+%22second+link+tuas%22+OR+%22VEP+malaysia%22+OR+%22VEP+singapore%22&hl=en&gl=SG&ceid=SG:en",
         "needs_filter": True,
     },
     {
         "name": "Google News (RTS Link)",
         "url": "https://news.google.com/rss/search?q=%22RTS+Link%22+OR+%22johor+singapore+rail%22&hl=en&gl=SG&ceid=SG:en",
         "needs_filter": False,
-    },
-    # CNA — Singapore section, must filter
-    {
-        "name": "CNA Singapore",
-        "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml&category=6511",
-        "needs_filter": True,
-    },
-    # CNA — Asia section (catches MY-SG bilateral news)
-    {
-        "name": "CNA Asia",
-        "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml&category=6936",
-        "needs_filter": True,
-    },
-    # The Star — Nation section
-    {
-        "name": "The Star",
-        "url": "https://www.thestar.com.my/rss/News/Nation",
-        "needs_filter": True,
     },
 ]
 
@@ -70,35 +52,22 @@ RSS_FEEDS = [
 # We use groups so compound terms like "work pass" match as a phrase.
 
 RELEVANCE_KEYWORDS = [
-    # --- Pillar 1: Border & Crossing ---
+    # --- Border crossings (uniquely JB-SG) ---
     "causeway", "second link",
     "woodlands checkpoint", "tuas checkpoint",
-    "immigration checkpoint", "customs checkpoint",
-    "cross-border", "cross border",
-    # --- Pillar 2: Cross-border Transport ---
+    # --- Cross-border transport (uniquely JB-SG) ---
     "rts link", "ktm shuttle",
     "bukit chagar", "woodlands north",
     "transtar", "causeway link",
-    "cw1", "cw2", "bus 170",
-    "cross-border bus",
-    # --- Pillar 3: VEP & Driving ---
+    # --- VEP (uniquely MY-SG) ---
     "vep", "vehicle entry permit", "autopass",
-    # --- Pillar 4: Working in SG (cross-border context) ---
-    "work pass", "employment pass", "s pass", "work permit",
-    "foreign worker", "malaysian worker",
-    "compass framework",
-    # --- Pillar 5: Money & Remittance (SG-MY specific) ---
-    "sgd myr", "myr sgd", "sgd to myr", "myr to sgd",
-    "remittance", "duitnow", "paynow",
-    "cpf foreign", "cpf withdrawal",
-    # --- Pillar 6: Living in SG as Malaysian ---
-    "arrival card", "sgac", "myica",
-    # --- Pillar 7: Malaysia-Singapore Bilateral ---
-    "malaysia singapore", "singapore malaysia",
+    # --- Geographic anchors (explicit corridor) ---
     "johor singapore", "singapore johor",
-    "bilateral", "jb-sg", "jb sg",
-    "johor-singapore",
-    "special economic zone",
+    "johor-singapore", "singapore-johor",
+    "malaysia singapore", "singapore malaysia",
+    "jb-sg", "jb sg", "jb to sg", "sg to jb",
+    # --- Currency pair (uniquely MY-SG) ---
+    "sgd myr", "myr sgd", "sgd to myr", "myr to sgd",
 ]
 
 # Pre-compile for speed
@@ -116,19 +85,15 @@ def is_relevant(title, description):
 # AUTO-TAGGING
 # ---------------------------------------------------------------------------
 TAG_RULES = [
-    # (tag_name, keywords_to_check)  — first match wins
     ("Transport", ["rts link", "ktm", "shuttle", "bukit chagar", "woodlands north",
-                   "transtar", "causeway link", "cw1", "cw2", "170",
-                   "cross-border bus"]),
+                   "transtar", "causeway link", "bus"]),
     ("Border",    ["checkpoint", "causeway", "second link", "immigration",
                    "customs", "crossing", "congestion", "queue", "jam"]),
     ("VEP",       ["vep", "vehicle entry permit", "autopass", "rfid",
                    "foreign vehicle"]),
-    ("Work",      ["work pass", "employment pass", "s pass", "work permit",
-                   "foreign worker", "malaysian worker", "compass"]),
     ("Finance",   ["sgd", "myr", "ringgit", "remittance",
-                   "cpf", "duitnow", "paynow", "wise", "instarem"]),
-    ("Policy",    ["bilateral", "agreement", "special economic zone",
+                   "duitnow", "paynow", "wise", "instarem"]),
+    ("Policy",    ["bilateral", "agreement", "economic zone", "trade",
                    "malaysia singapore", "singapore malaysia"]),
 ]
 
