@@ -34,8 +34,8 @@ SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 RSS_FEEDS = [
     # Google News — broad search, must filter
     {
-        "name": "Google News (MY-SG)",
-        "url": "https://news.google.com/rss/search?q=%22malaysia+singapore%22+OR+%22causeway%22+OR+%22second+link%22+OR+%22cross-border%22+OR+%22work+pass%22+OR+%22SGD+MYR%22&hl=en&gl=SG&ceid=SG:en",
+        "name": "Google News (MY-SG corridor)",
+        "url": "https://news.google.com/rss/search?q=%22johor+singapore%22+OR+%22causeway+checkpoint%22+OR+%22woodlands+checkpoint%22+OR+%22tuas+checkpoint%22+OR+%22cross-border%22+OR+%22VEP+singapore%22+OR+%22work+pass+singapore%22&hl=en&gl=SG&ceid=SG:en",
         "needs_filter": True,
     },
     {
@@ -70,25 +70,35 @@ RSS_FEEDS = [
 # We use groups so compound terms like "work pass" match as a phrase.
 
 RELEVANCE_KEYWORDS = [
-    # Cross-border geography (not pure JB local)
-    "jb-sg", "jb sg", "johor-singapore", "johor singapore",
-    # Border crossings
-    "causeway", "second link", "woodlands checkpoint", "tuas checkpoint",
-    "customs", "immigration checkpoint", "bke", "aye tuas",
-    # Transport
-    "rts link", "ktm shuttle", "tebrau", "bukit chagar", "woodlands north",
-    "transtar", "causeway link", "bus 170", "cw1", "cw2",
-    # Policy — bilateral / cross-border
+    # --- Pillar 1: Border & Crossing ---
+    "causeway", "second link",
+    "woodlands checkpoint", "tuas checkpoint",
+    "immigration checkpoint", "customs checkpoint",
+    "cross-border", "cross border",
+    # --- Pillar 2: Cross-border Transport ---
+    "rts link", "ktm shuttle",
+    "bukit chagar", "woodlands north",
+    "transtar", "causeway link",
+    "cw1", "cw2", "bus 170",
+    "cross-border bus",
+    # --- Pillar 3: VEP & Driving ---
     "vep", "vehicle entry permit", "autopass",
-    "malaysia singapore", "singapore malaysia", "bilateral",
-    # Work in SG
+    # --- Pillar 4: Working in SG (cross-border context) ---
     "work pass", "employment pass", "s pass", "work permit",
     "foreign worker", "malaysian worker",
-    # Money — SG-MY specific
-    "sgd myr", "myr sgd", "exchange rate",
-    "cpf", "remittance", "duitnow",
-    # Catch-alls
-    "cross-border", "cross border",
+    "compass framework",
+    # --- Pillar 5: Money & Remittance (SG-MY specific) ---
+    "sgd myr", "myr sgd", "sgd to myr", "myr to sgd",
+    "remittance", "duitnow", "paynow",
+    "cpf foreign", "cpf withdrawal",
+    # --- Pillar 6: Living in SG as Malaysian ---
+    "arrival card", "sgac", "myica",
+    # --- Pillar 7: Malaysia-Singapore Bilateral ---
+    "malaysia singapore", "singapore malaysia",
+    "johor singapore", "singapore johor",
+    "bilateral", "jb-sg", "jb sg",
+    "johor-singapore",
+    "special economic zone",
 ]
 
 # Pre-compile for speed
@@ -107,21 +117,19 @@ def is_relevant(title, description):
 # ---------------------------------------------------------------------------
 TAG_RULES = [
     # (tag_name, keywords_to_check)  — first match wins
-    ("Transport", ["rts link", "ktm", "bus", "train", "mrt", "lrt", "causeway link",
-                   "transtar", "shuttle", "tebrau", "bukit chagar", "woodlands north",
-                   "cw1", "cw2", "170", "transport"]),
-    ("Border",    ["checkpoint", "customs", "immigration", "causeway", "second link",
-                   "woodlands", "tuas", "border", "cross-border", "crossing",
-                   "queue", "jam", "congestion"]),
-    ("Policy",    ["policy", "regulation", "bilateral", "agreement", "law", "act",
-                   "government", "ministry", "parliament", "budget", "announce"]),
-    ("Finance",   ["exchange rate", "sgd", "myr", "ringgit", "remittance", "bank",
-                   "cpf", "tax", "gst", "sst", "wise", "instarem", "duitnow"]),
+    ("Transport", ["rts link", "ktm", "shuttle", "bukit chagar", "woodlands north",
+                   "transtar", "causeway link", "cw1", "cw2", "170",
+                   "cross-border bus"]),
+    ("Border",    ["checkpoint", "causeway", "second link", "immigration",
+                   "customs", "crossing", "congestion", "queue", "jam"]),
+    ("VEP",       ["vep", "vehicle entry permit", "autopass", "rfid",
+                   "foreign vehicle"]),
     ("Work",      ["work pass", "employment pass", "s pass", "work permit",
-                   "foreign worker", "malaysian worker", "compass", "mom"]),
-    ("Property",  ["property", "hdb", "rental", "housing", "condo", "apartment",
-                   "real estate", "iskandar", "forest city"]),
-    ("VEP",       ["vep", "vehicle entry permit", "autopass", "erp", "rfid"]),
+                   "foreign worker", "malaysian worker", "compass"]),
+    ("Finance",   ["sgd", "myr", "ringgit", "remittance",
+                   "cpf", "duitnow", "paynow", "wise", "instarem"]),
+    ("Policy",    ["bilateral", "agreement", "special economic zone",
+                   "malaysia singapore", "singapore malaysia"]),
 ]
 
 _tag_patterns = [
