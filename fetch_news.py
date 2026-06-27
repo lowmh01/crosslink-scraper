@@ -113,35 +113,6 @@ def auto_tag(title, description):
 
 
 # ---------------------------------------------------------------------------
-# AUTO-LOCATION
-# ---------------------------------------------------------------------------
-MY_KEYWORDS = re.compile(
-    r"johor|malaysia|jb|iskandar|tebrau|bukit chagar|ringgit|bernama|the star"
-    r"|causeway|second link",
-    re.IGNORECASE,
-)
-SG_KEYWORDS = re.compile(
-    r"singapore|woodlands|tuas|cpf|hdb|mrt|lta|iras|ica|mom\b|sgd|cna"
-    r"|causeway|second link",
-    re.IGNORECASE,
-)
-
-
-def auto_location(title, description, source_name):
-    """Return 'JB', 'SG', or 'Both'."""
-    text = f"{title} {description} {source_name}"
-    has_my = bool(MY_KEYWORDS.search(text))
-    has_sg = bool(SG_KEYWORDS.search(text))
-    if has_my and has_sg:
-        return "Both"
-    if has_my:
-        return "JB"
-    if has_sg:
-        return "SG"
-    return "Both"
-
-
-# ---------------------------------------------------------------------------
 # RSS PARSING
 # ---------------------------------------------------------------------------
 def parse_published(entry):
@@ -223,7 +194,6 @@ def fetch_articles(feed_config):
             continue
 
         tag = auto_tag(title, description)
-        location = auto_location(title, description, name)
         image = extract_image(entry)
 
         articles.append({
@@ -233,7 +203,7 @@ def fetch_articles(feed_config):
             "cta_url": link,
             "image_url": image,
             "tag": tag,
-            "location": location,
+            "location": "Both",  # Cross-border news is always Both
             "is_active": True,
             "is_featured": False,
             "created_at": published.isoformat(),
