@@ -85,16 +85,21 @@ def is_relevant(title, description):
 # AUTO-TAGGING
 # ---------------------------------------------------------------------------
 TAG_RULES = [
-    ("Transport", ["rts link", "ktm", "shuttle", "bukit chagar", "woodlands north",
-                   "transtar", "causeway link", "bus"]),
-    ("Border",    ["checkpoint", "causeway", "second link", "immigration",
-                   "customs", "crossing", "congestion", "queue", "jam"]),
-    ("VEP",       ["vep", "vehicle entry permit", "autopass", "rfid",
-                   "foreign vehicle"]),
-    ("Finance",   ["sgd", "myr", "ringgit", "remittance",
-                   "duitnow", "paynow", "wise", "instarem"]),
-    ("Policy",    ["bilateral", "agreement", "economic zone", "trade",
-                   "malaysia singapore", "singapore malaysia"]),
+    # Order matters — first match wins. Checkpoint before Transport
+    # so enforcement stories at checkpoints don't get tagged as Transport.
+    ("Checkpoint", ["checkpoint", "causeway", "second link", "immigration",
+                    "customs", "smuggl", "contraband", "ica ",
+                    "congestion", "queue", "jam", "crossing"]),
+    ("Transport",  ["rts link", "ktm", "shuttle", "bukit chagar", "woodlands north",
+                    "transtar", "causeway link", "walkway"]),
+    ("VEP",        ["vep", "vehicle entry permit", "autopass", "rfid",
+                    "foreign vehicle", "road charge"]),
+    ("Economy",    ["economic zone", "sez", "investment", "real estate",
+                    "property", "trade"]),
+    ("Policy",     ["bilateral", "agreement", "diplomatic",
+                    "malaysia singapore", "singapore malaysia"]),
+    ("Finance",    ["sgd", "myr", "ringgit", "remittance",
+                    "duitnow", "paynow", "wise", "instarem"]),
 ]
 
 _tag_patterns = [
