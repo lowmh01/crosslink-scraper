@@ -1,0 +1,36 @@
+name: Vision Pipeline
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub cron is UTC and often runs a few minutes
+    # late, and may skip a run under load. That's fine here: readings are
+    # bucketed by timestamp, so a few minutes' drift or an occasional miss
+    # does not affect the heatmap. Frequency covers the unreliability.
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}   # lets you run it manually from the Actions tab
+
+concurrency:
+  group: vision-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run vision pipeline
+        env:
+          LTA_ACCOUNT_KEY: ${{ secrets.LTA_ACCOUNT_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python vision_pipeline.py
