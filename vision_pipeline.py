@@ -12,7 +12,7 @@ something we can't parse into clear/moderate/heavy, we write NOTHING for
 that camera. A gap is honest; a guessed status is not.
 
 Required environment variables (set as GitHub Actions secrets):
-  LTA_ACCOUNT_KEY        - LTA DataMall AccountKey
+  LTA_API_KEY            - LTA DataMall AccountKey
   GEMINI_API_KEY         - Google AI Studio key (free, no credit card)
   SUPABASE_URL           - e.g. https://xxxx.supabase.co
   SUPABASE_SERVICE_KEY   - Supabase service_role key (writes only, server-side)
@@ -71,7 +71,7 @@ def get_camera_images():
     """Return {camera_id: image_url} for the cameras we care about."""
     wanted = {c["camera_id"] for c in CAMERAS}
     headers = {
-        "AccountKey": os.environ["LTA_ACCOUNT_KEY"], "accept": "application/json"}
+        "AccountKey": os.environ["LTA_API_KEY"], "accept": "application/json"}
     r = requests.get(LTA_IMAGES_URL, headers=headers, timeout=30)
     r.raise_for_status()
     out = {}

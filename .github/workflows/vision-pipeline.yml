@@ -29,7 +29,7 @@ jobs:
 
       - name: Run vision pipeline
         env:
-          LTA_ACCOUNT_KEY: ${{ secrets.LTA_ACCOUNT_KEY }}
+          LTA_API_KEY: ${{ secrets.LTA_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
