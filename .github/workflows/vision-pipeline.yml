@@ -1,12 +1,6 @@
 name: Vision Pipeline
 
 on:
-  schedule:
-    # Every 15 minutes. GitHub cron is UTC and often runs a few minutes
-    # late, and may skip a run under load. That's fine here: readings are
-    # bucketed by timestamp, so a few minutes' drift or an occasional miss
-    # does not affect the heatmap. Frequency covers the unreliability.
-    - cron: "*/15 * * * *"
   workflow_dispatch: {}   # lets you run it manually from the Actions tab
 
 concurrency:

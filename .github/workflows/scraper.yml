@@ -1,8 +1,6 @@
 name: Fetch Exchange Rates
 
 on:
-  schedule:
-    - cron: '*/10 * * * *' 
   workflow_dispatch:  # 允許手動觸發
 
 jobs:
