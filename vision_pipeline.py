@@ -1,17 +1,22 @@
 """
-vision_pipeline.py  (Gemini Flash-Lite version)
------------------------------------------------
-Reads LTA DataMall traffic camera images, classifies congestion with
-Gemini Flash-Lite (free tier), and writes one qualitative status row per
-camera into the Supabase `traffic_readings` table.
+vision_pipeline.py  (Gemini Flash-Lite, 4 cameras x 2 directions, raw rows)
+---------------------------------------------------------------------------
+Each camera frame contains BOTH directions of travel, so Gemini judges each
+direction separately from one image. Every checkpoint has a primary and a
+secondary camera; we store the RAW per-camera reading for each direction
+(tagged with camera_id + weight) and let the display layer combine them.
+This keeps all source data, including disagreements between cameras.
+
+  Woodlands: 2701 primary (0.7), 2702 secondary (0.3)
+  Tuas:      4703 primary (0.7), 4713 secondary (0.3)
 
 Runs every 15 minutes via GitHub Actions.
 
-Honesty rule baked in: if an image can't be fetched, or the model returns
-something we can't parse into clear/moderate/heavy, we write NOTHING for
-that camera. A gap is honest; a guessed status is not.
+Honesty rule: if an image can't be fetched, or a direction comes back as
+"unknown" / unparseable, we write NOTHING for it. A gap is honest; a guess
+is not.
 
-Required environment variables (set as GitHub Actions secrets):
+Required environment variables (GitHub Actions secrets):
   LTA_API_KEY            - LTA DataMall AccountKey
   GEMINI_API_KEY         - Google AI Studio key (free, no credit card)
   SUPABASE_URL           - e.g. https://xxxx.supabase.co
@@ -25,24 +30,23 @@ import sys
 import requests
 
 # ---------------------------------------------------------------------
-# Which camera represents which checkpoint + direction.
-# CameraIDs from LTA DataMall, matched to your site's camConfigs.
-# NOTE: confirm 4713's real direction - your camConfigs had it as JB->SG.
-#       Adjust the `direction` field here if needed; the heatmap accuracy
-#       depends entirely on this mapping being right.
+# Each camera maps to a CHECKPOINT (both directions live in the frame),
+# plus a weight: primary 0.7, secondary 0.3. The label gives the model
+# orientation context to tell the two directions apart.
 # ---------------------------------------------------------------------
 CAMERAS = [
-    {"camera_id": "2701", "checkpoint": "woodlands", "direction": "sg_jb"},
-    {"camera_id": "2702", "checkpoint": "woodlands", "direction": "jb_sg"},
-    {"camera_id": "4703", "checkpoint": "tuas",      "direction": "jb_sg"},
-    {"camera_id": "4713", "checkpoint": "tuas",      "direction": "sg_jb"},
+    {"camera_id": "2701", "checkpoint": "woodlands", "weight": 0.7,
+     "label": "Woodlands Causeway, primary view towards Johor Bahru"},
+    {"camera_id": "2702", "checkpoint": "woodlands", "weight": 0.3,
+     "label": "Woodlands Checkpoint, secondary view towards BKE / Singapore"},
+    {"camera_id": "4703", "checkpoint": "tuas", "weight": 0.7,
+     "label": "Second Link at Tuas, primary view"},
+    {"camera_id": "4713", "checkpoint": "tuas", "weight": 0.3,
+     "label": "Tuas Checkpoint, secondary view"},
 ]
 
 LTA_IMAGES_URL = "https://datamall2.mytransport.sg/ltaodataservice/Traffic-Imagesv2"
 
-# Model name as shown in Google AI Studio. Flash-Lite is free-tier eligible
-# and ideal for simple classification. Swap to "gemini-3-flash" if you want
-# a slightly stronger model (also free, lower RPM).
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 GEMINI_URL = (
     f"https://generativelanguage.googleapis.com/v1beta/models/"
@@ -50,21 +54,27 @@ GEMINI_URL = (
 )
 
 VALID = {"clear", "moderate", "heavy"}
+DIRECTIONS = ("sg_jb", "jb_sg")
 
-CLASSIFY_PROMPT = (
-    "This is a live traffic camera image at the Singapore-Malaysia land "
-    "checkpoint (Woodlands Causeway or Tuas Second Link). Judge how congested "
-    "the road in view is, based on vehicle density and whether traffic looks "
-    "like it is moving or queued.\n\n"
-    "Classify into exactly one of:\n"
-    '- "clear": light traffic, vehicles moving freely, low density\n'
-    '- "moderate": noticeable build-up, dense but still moving\n'
-    '- "heavy": packed, queued, or stationary traffic\n\n'
-    "If the image is too dark, blurry, or obstructed to judge, use status "
-    '"unknown".\n\n'
-    'Respond with a JSON object: '
-    '{"status": "clear|moderate|heavy|unknown", "note": "<one short factual sentence>"}'
-)
+
+def build_prompt(label):
+    return (
+        "This is a live traffic camera at a Singapore-Malaysia land checkpoint "
+        f"(Woodlands Causeway or Tuas Second Link). Camera context: {label}.\n\n"
+        "The view contains traffic moving in two opposite directions. Judge "
+        "congestion SEPARATELY for each direction:\n"
+        "- sg_jb = traffic heading FROM Singapore TOWARDS Johor Bahru / Malaysia\n"
+        "- jb_sg = traffic heading FROM Johor Bahru / Malaysia TOWARDS Singapore\n\n"
+        "For each direction classify as exactly one of:\n"
+        '- "clear": light, moving freely, low density\n'
+        '- "moderate": noticeable build-up, dense but still moving\n'
+        '- "heavy": packed, queued, or stationary\n\n'
+        "If a direction is not visible in the frame, or you cannot tell which "
+        'lanes belong to it, use "unknown" for that direction. Do not guess.\n\n'
+        "Respond with a JSON object only:\n"
+        '{"sg_jb": {"status": "clear|moderate|heavy|unknown", "note": "<one short sentence>"}, '
+        '"jb_sg": {"status": "clear|moderate|heavy|unknown", "note": "<one short sentence>"}}'
+    )
 
 
 def get_camera_images():
@@ -82,19 +92,19 @@ def get_camera_images():
     return out
 
 
-def classify(image_bytes):
-    """Return {'status', 'note'} or None if unusable."""
+def classify(image_bytes, label):
+    """Return {'sg_jb': {status,note}, 'jb_sg': {status,note}} or None."""
     b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
     body = {
         "contents": [
             {
                 "parts": [
                     {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
-                    {"text": CLASSIFY_PROMPT},
+                    {"text": build_prompt(label)},
                 ]
             }
         ],
-        "generationConfig": {"maxOutputTokens": 200, "responseMimeType": "application/json"},
+        "generationConfig": {"maxOutputTokens": 300, "responseMimeType": "application/json"},
     }
     r = requests.post(
         GEMINI_URL,
@@ -110,19 +120,13 @@ def classify(image_bytes):
         return None
     text = text.replace("```json", "").replace("```", "").strip()
     try:
-        parsed = json.loads(text)
+        return json.loads(text)
     except json.JSONDecodeError:
         print(f"  ! could not parse model output: {text[:120]}")
         return None
-    status = str(parsed.get("status", "")).lower().strip()
-    if status not in VALID:
-        print(f"  - skipped (status='{status}')")
-        return None
-    note = str(parsed.get("note", "")).strip()[:280]
-    return {"status": status, "note": note}
 
 
-def insert_reading(checkpoint, direction, status, note):
+def insert_reading(checkpoint, direction, status, note, camera_id, weight):
     url = os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1/traffic_readings"
     key = os.environ["SUPABASE_SERVICE_KEY"]
     headers = {
@@ -137,6 +141,8 @@ def insert_reading(checkpoint, direction, status, note):
         "status": status,
         "vision_note": note,
         "source": "vision",
+        "camera_id": camera_id,
+        "weight": weight,
     }
     r = requests.post(url, headers=headers, json=payload, timeout=30)
     r.raise_for_status()
@@ -150,33 +156,42 @@ def main():
         sys.exit(1)
 
     written = 0
+    attempted = 0
     for cam in CAMERAS:
         cid = cam["camera_id"]
-        tag = f"{cam['checkpoint']}/{cam['direction']} (cam {cid})"
+        cp = cam["checkpoint"]
         url = images.get(cid)
         if not url:
-            print(f"- {tag}: no image link from LTA, skipping")
+            print(f"- {cp} (cam {cid}): no image link from LTA, skipping")
             continue
         try:
             img = requests.get(url, timeout=30).content
         except Exception as e:
-            print(f"- {tag}: image download failed ({e}), skipping")
+            print(f"- {cp} (cam {cid}): image download failed ({e}), skipping")
             continue
 
-        result = classify(img)
+        result = classify(img, cam["label"])
         if not result:
-            print(f"- {tag}: not classifiable, writing nothing")
+            print(f"- {cp} (cam {cid}): not classifiable, writing nothing")
             continue
 
-        try:
-            insert_reading(cam["checkpoint"], cam["direction"],
-                           result["status"], result["note"])
-            written += 1
-            print(f"- {tag}: {result['status']} - {result['note']}")
-        except Exception as e:
-            print(f"- {tag}: DB insert failed ({e})")
+        for direction in DIRECTIONS:
+            attempted += 1
+            d = result.get(direction) or {}
+            status = str(d.get("status", "")).lower().strip()
+            tag = f"{cp}/{direction} (cam {cid}, w={cam['weight']})"
+            if status not in VALID:
+                print(f"- {tag}: {status or 'missing'}, writing nothing")
+                continue
+            note = str(d.get("note", "")).strip()[:280]
+            try:
+                insert_reading(cp, direction, status, note, cid, cam["weight"])
+                written += 1
+                print(f"- {tag}: {status} - {note}")
+            except Exception as e:
+                print(f"- {tag}: DB insert failed ({e})")
 
-    print(f"\nDone. {written}/{len(CAMERAS)} readings written.")
+    print(f"\nDone. {written}/{attempted} direction-readings written.")
 
 
 if __name__ == "__main__":
