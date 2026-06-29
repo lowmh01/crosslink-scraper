@@ -27,6 +27,7 @@ import base64
 import json
 import os
 import sys
+import time
 import requests
 
 # ---------------------------------------------------------------------
@@ -55,6 +56,12 @@ GEMINI_URL = (
 
 VALID = {"clear", "moderate", "heavy"}
 DIRECTIONS = ("sg_jb", "jb_sg")
+
+# Rate-limit safety: seconds to wait between Gemini calls
+GEMINI_CALL_DELAY = 3
+# Retry config for 429
+RETRY_DELAY = 10
+MAX_RETRIES = 1
 
 
 def build_prompt(label):
@@ -93,7 +100,8 @@ def get_camera_images():
 
 
 def classify(image_bytes, label):
-    """Return {'sg_jb': {status,note}, 'jb_sg': {status,note}} or None."""
+    """Return {'sg_jb': {status,note}, 'jb_sg': {status,note}} or None.
+    Retries once on 429 (rate limit) with a delay."""
     b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
     body = {
         "contents": [
@@ -106,13 +114,26 @@ def classify(image_bytes, label):
         ],
         "generationConfig": {"maxOutputTokens": 300, "responseMimeType": "application/json"},
     }
-    r = requests.post(
-        GEMINI_URL,
-        params={"key": os.environ["GEMINI_API_KEY"]},
-        json=body,
-        timeout=60,
-    )
-    r.raise_for_status()
+
+    for attempt in range(1 + MAX_RETRIES):
+        r = requests.post(
+            GEMINI_URL,
+            params={"key": os.environ["GEMINI_API_KEY"]},
+            json=body,
+            timeout=60,
+        )
+        if r.status_code == 429:
+            if attempt < MAX_RETRIES:
+                wait = RETRY_DELAY * (attempt + 1)
+                print(f"  ! 429 rate limited, waiting {wait}s before retry...")
+                time.sleep(wait)
+                continue
+            else:
+                print("  ! 429 rate limited, no retries left, skipping")
+                return None
+        r.raise_for_status()
+        break
+
     try:
         text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     except (KeyError, IndexError):
@@ -157,7 +178,7 @@ def main():
 
     written = 0
     attempted = 0
-    for cam in CAMERAS:
+    for i, cam in enumerate(CAMERAS):
         cid = cam["camera_id"]
         cp = cam["checkpoint"]
         url = images.get(cid)
@@ -169,6 +190,10 @@ def main():
         except Exception as e:
             print(f"- {cp} (cam {cid}): image download failed ({e}), skipping")
             continue
+
+        # Rate-limit: wait between Gemini calls (skip before the first one)
+        if i > 0:
+            time.sleep(GEMINI_CALL_DELAY)
 
         result = classify(img, cam["label"])
         if not result:
