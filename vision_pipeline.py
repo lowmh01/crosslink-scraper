@@ -27,6 +27,7 @@ import base64
 import json
 import os
 import sys
+import time
 import requests
 
 # ---------------------------------------------------------------------
@@ -84,7 +85,8 @@ def build_prompt(anchor):
 def get_camera_images():
     """Return {camera_id: image_url} for the cameras we care about."""
     wanted = {c["camera_id"] for c in CAMERAS}
-    headers = {"AccountKey": os.environ["LTA_API_KEY"], "accept": "application/json"}
+    headers = {
+        "AccountKey": os.environ["LTA_API_KEY"], "accept": "application/json"}
     r = requests.get(LTA_IMAGES_URL, headers=headers, timeout=30)
     r.raise_for_status()
     out = {}
@@ -115,6 +117,19 @@ def classify(image_bytes, anchor):
         json=body,
         timeout=60,
     )
+    # Retry on 429 (rate limit) — wait and try again, up to 3 times
+    if r.status_code == 429:
+        for attempt in range(1, 4):
+            print(f"  ! 429 rate-limited, waiting 10s (retry {attempt}/3)")
+            time.sleep(10)
+            r = requests.post(
+                GEMINI_URL,
+                params={"key": os.environ["GEMINI_API_KEY"]},
+                json=body,
+                timeout=60,
+            )
+            if r.status_code != 429:
+                break
     r.raise_for_status()
     try:
         text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -174,6 +189,8 @@ def main():
             continue
 
         result = classify(img, cam["anchor"])
+        # Delay between cameras to stay under Gemini's rate limit
+        time.sleep(5)
         if not result:
             print(f"- {cp} (cam {cid}): not classifiable, writing nothing")
             continue
