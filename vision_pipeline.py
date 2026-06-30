@@ -27,7 +27,6 @@ import base64
 import json
 import os
 import sys
-import time
 import requests
 
 # ---------------------------------------------------------------------
@@ -37,13 +36,13 @@ import requests
 # ---------------------------------------------------------------------
 CAMERAS = [
     {"camera_id": "2701", "checkpoint": "woodlands", "weight": 0.7,
-     "label": "Woodlands Causeway, primary view towards Johor Bahru"},
+     "anchor": "The lanes beside the yellow 'WOODLANDS' sign carry traffic towards Singapore = jb_sg (this side is nearer the camera). The lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb (this side is along the water)."},
     {"camera_id": "2702", "checkpoint": "woodlands", "weight": 0.3,
-     "label": "Woodlands Checkpoint, secondary view towards BKE / Singapore"},
+     "anchor": "The lanes beside the yellow 'BKE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'CAUSEWAY' sign carry traffic towards Johor = sg_jb (right carriageway)."},
     {"camera_id": "4703", "checkpoint": "tuas", "weight": 0.7,
-     "label": "Second Link at Tuas, primary view"},
+     "anchor": "The ramp/lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb. The opposite carriageway, leading away from the JOHOR ramp towards the Tuas checkpoint plaza, carries traffic towards Singapore = jb_sg."},
     {"camera_id": "4713", "checkpoint": "tuas", "weight": 0.3,
-     "label": "Tuas Checkpoint, secondary view"},
+     "anchor": "The lanes beside the yellow 'AYE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb (right carriageway)."},
 ]
 
 LTA_IMAGES_URL = "https://datamall2.mytransport.sg/ltaodataservice/Traffic-Imagesv2"
@@ -57,27 +56,25 @@ GEMINI_URL = (
 VALID = {"clear", "moderate", "heavy"}
 DIRECTIONS = ("sg_jb", "jb_sg")
 
-# Rate-limit safety: seconds to wait between Gemini calls
-GEMINI_CALL_DELAY = 3
-# Retry config for 429
-RETRY_DELAY = 10
-MAX_RETRIES = 1
 
-
-def build_prompt(label):
+def build_prompt(anchor):
     return (
-        "This is a live traffic camera at a Singapore-Malaysia land checkpoint "
-        f"(Woodlands Causeway or Tuas Second Link). Camera context: {label}.\n\n"
-        "The view contains traffic moving in two opposite directions. Judge "
-        "congestion SEPARATELY for each direction:\n"
-        "- sg_jb = traffic heading FROM Singapore TOWARDS Johor Bahru / Malaysia\n"
-        "- jb_sg = traffic heading FROM Johor Bahru / Malaysia TOWARDS Singapore\n\n"
-        "For each direction classify as exactly one of:\n"
+        "This is a live LTA traffic camera at a Singapore-Malaysia land "
+        "checkpoint (Woodlands Causeway or Tuas Second Link). The frame "
+        "contains yellow LTA direction signs that label where each carriageway "
+        "leads. Use these signs as your anchor to tell the two directions "
+        "apart. Do NOT guess direction from left/right or from the scene.\n\n"
+        f"{anchor}\n\n"
+        "Now judge congestion SEPARATELY for each direction, looking only at "
+        "the lanes that belong to it:\n"
+        "- sg_jb = heading towards Johor Bahru / Malaysia\n"
+        "- jb_sg = heading towards Singapore\n\n"
+        "Classify each as exactly one of:\n"
         '- "clear": light, moving freely, low density\n'
         '- "moderate": noticeable build-up, dense but still moving\n'
         '- "heavy": packed, queued, or stationary\n\n'
-        "If a direction is not visible in the frame, or you cannot tell which "
-        'lanes belong to it, use "unknown" for that direction. Do not guess.\n\n'
+        "If you cannot locate a sign or judge its lanes, use \"unknown\" for "
+        "that direction. Do not guess.\n\n"
         "Respond with a JSON object only:\n"
         '{"sg_jb": {"status": "clear|moderate|heavy|unknown", "note": "<one short sentence>"}, '
         '"jb_sg": {"status": "clear|moderate|heavy|unknown", "note": "<one short sentence>"}}'
@@ -87,8 +84,7 @@ def build_prompt(label):
 def get_camera_images():
     """Return {camera_id: image_url} for the cameras we care about."""
     wanted = {c["camera_id"] for c in CAMERAS}
-    headers = {
-        "AccountKey": os.environ["LTA_API_KEY"], "accept": "application/json"}
+    headers = {"AccountKey": os.environ["LTA_API_KEY"], "accept": "application/json"}
     r = requests.get(LTA_IMAGES_URL, headers=headers, timeout=30)
     r.raise_for_status()
     out = {}
@@ -99,41 +95,27 @@ def get_camera_images():
     return out
 
 
-def classify(image_bytes, label):
-    """Return {'sg_jb': {status,note}, 'jb_sg': {status,note}} or None.
-    Retries once on 429 (rate limit) with a delay."""
+def classify(image_bytes, anchor):
+    """Return {'sg_jb': {status,note}, 'jb_sg': {status,note}} or None."""
     b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
     body = {
         "contents": [
             {
                 "parts": [
                     {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
-                    {"text": build_prompt(label)},
+                    {"text": build_prompt(anchor)},
                 ]
             }
         ],
         "generationConfig": {"maxOutputTokens": 300, "responseMimeType": "application/json"},
     }
-
-    for attempt in range(1 + MAX_RETRIES):
-        r = requests.post(
-            GEMINI_URL,
-            params={"key": os.environ["GEMINI_API_KEY"]},
-            json=body,
-            timeout=60,
-        )
-        if r.status_code == 429:
-            if attempt < MAX_RETRIES:
-                wait = RETRY_DELAY * (attempt + 1)
-                print(f"  ! 429 rate limited, waiting {wait}s before retry...")
-                time.sleep(wait)
-                continue
-            else:
-                print("  ! 429 rate limited, no retries left, skipping")
-                return None
-        r.raise_for_status()
-        break
-
+    r = requests.post(
+        GEMINI_URL,
+        params={"key": os.environ["GEMINI_API_KEY"]},
+        json=body,
+        timeout=60,
+    )
+    r.raise_for_status()
     try:
         text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     except (KeyError, IndexError):
@@ -178,7 +160,7 @@ def main():
 
     written = 0
     attempted = 0
-    for i, cam in enumerate(CAMERAS):
+    for cam in CAMERAS:
         cid = cam["camera_id"]
         cp = cam["checkpoint"]
         url = images.get(cid)
@@ -191,11 +173,7 @@ def main():
             print(f"- {cp} (cam {cid}): image download failed ({e}), skipping")
             continue
 
-        # Rate-limit: wait between Gemini calls (skip before the first one)
-        if i > 0:
-            time.sleep(GEMINI_CALL_DELAY)
-
-        result = classify(img, cam["label"])
+        result = classify(img, cam["anchor"])
         if not result:
             print(f"- {cp} (cam {cid}): not classifiable, writing nothing")
             continue
