@@ -1,26 +1,23 @@
 """
-vision_pipeline.py  (Gemini Flash-Lite, 4 cameras x 2 directions, raw rows)
+vision_pipeline.py  (Gemini Flash-Lite, 2-per-call batched by checkpoint)
 ---------------------------------------------------------------------------
-Each camera frame contains BOTH directions of travel, so Gemini judges each
-direction separately from one image. Every checkpoint has a primary and a
-secondary camera; we store the RAW per-camera reading for each direction
-(tagged with camera_id + weight) and let the display layer combine them.
-This keeps all source data, including disagreements between cameras.
+Each checkpoint has two cameras. We send BOTH images in a single Gemini call
+(grouped by checkpoint), cutting RPD in half:  4 calls → 2 calls per run.
 
-  Woodlands: 2701 primary (0.7), 2702 secondary (0.3)
-  Tuas:      4703 primary (0.7), 4713 secondary (0.3)
+  Woodlands: 2701 + 2702  → 1 API call
+  Tuas:      4703 + 4713  → 1 API call
 
-Runs every 15 minutes via GitHub Actions.
+Gemini returns a JSON keyed by camera_id. We unpack and write each direction
+as a separate row, exactly as before.
 
 Honesty rule: if an image can't be fetched, or a direction comes back as
-"unknown" / unparseable, we write NOTHING for it. A gap is honest; a guess
-is not.
+"unknown" / unparseable, we write NOTHING for it.
 
 Required environment variables (GitHub Actions secrets):
   LTA_API_KEY            - LTA DataMall AccountKey
-  GEMINI_API_KEY         - Google AI Studio key (free, no credit card)
+  GEMINI_API_KEY         - Google AI Studio key
   SUPABASE_URL           - e.g. https://xxxx.supabase.co
-  SUPABASE_SERVICE_KEY   - Supabase service_role key (writes only, server-side)
+  SUPABASE_SERVICE_KEY   - Supabase service_role key
 """
 
 import base64
@@ -30,21 +27,21 @@ import sys
 import time
 import requests
 
-# ---------------------------------------------------------------------
-# Each camera maps to a CHECKPOINT (both directions live in the frame),
-# plus a weight: primary 0.7, secondary 0.3. The label gives the model
-# orientation context to tell the two directions apart.
-# ---------------------------------------------------------------------
 CAMERAS = [
     {"camera_id": "2701", "checkpoint": "woodlands", "weight": 0.7,
-     "anchor": "The lanes beside the yellow 'WOODLANDS' sign carry traffic towards Singapore = jb_sg (this side is nearer the camera). The lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb (this side is along the water)."},
+     "anchor": "Camera 2701: The lanes beside the yellow 'WOODLANDS' sign carry traffic towards Singapore = jb_sg (this side is nearer the camera). The lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb (this side is along the water)."},
     {"camera_id": "2702", "checkpoint": "woodlands", "weight": 0.3,
-     "anchor": "The lanes beside the yellow 'BKE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'CAUSEWAY' sign carry traffic towards Johor = sg_jb (right carriageway)."},
+     "anchor": "Camera 2702: The lanes beside the yellow 'BKE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'CAUSEWAY' sign carry traffic towards Johor = sg_jb (right carriageway)."},
     {"camera_id": "4703", "checkpoint": "tuas", "weight": 0.7,
      "anchor": "Camera 4703: The curving ramp beside the yellow 'JOHOR' sign carries traffic towards Johor = sg_jb. The OTHER road visible in the upper-right area of the frame, running along the bridge toward the checkpoint buildings, carries traffic towards Singapore = jb_sg. Do NOT count trucks or vehicles parked in staging areas beside the road — only judge vehicles actually on the travel lanes of each carriageway."},
     {"camera_id": "4713", "checkpoint": "tuas", "weight": 0.3,
-     "anchor": "The lanes beside the yellow 'AYE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb (right carriageway)."},
+     "anchor": "Camera 4713: The lanes beside the yellow 'AYE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb (right carriageway)."},
 ]
+
+# Group cameras by checkpoint for batching
+CHECKPOINTS = {}
+for _c in CAMERAS:
+    CHECKPOINTS.setdefault(_c["checkpoint"], []).append(_c)
 
 LTA_IMAGES_URL = "https://datamall2.mytransport.sg/ltaodataservice/Traffic-Imagesv2"
 
@@ -58,16 +55,19 @@ VALID = {"clear", "moderate", "heavy"}
 DIRECTIONS = ("sg_jb", "jb_sg")
 
 
-def build_prompt(anchor):
+def build_pair_prompt(cams):
+    """Build a prompt for 2 camera images from the same checkpoint."""
+    anchors = "\n".join(c["anchor"] for c in cams)
+    cam_ids = [c["camera_id"] for c in cams]
     return (
-        "This is a live LTA traffic camera at a Singapore-Malaysia land "
-        "checkpoint (Woodlands Causeway or Tuas Second Link). The frame "
-        "contains yellow LTA direction signs that label where each carriageway "
-        "leads. Use these signs as your anchor to tell the two directions "
-        "apart. Do NOT guess direction from left/right or from the scene.\n\n"
-        f"{anchor}\n\n"
-        "Now judge congestion SEPARATELY for each direction, looking only at "
-        "the lanes that belong to it:\n"
+        "You are given 2 live LTA traffic camera images from the same "
+        "Singapore-Malaysia checkpoint. The images are provided in this exact "
+        f"order: Camera {cam_ids[0]} (Image 1), Camera {cam_ids[1]} (Image 2).\n\n"
+        "Here are the orientation guidelines for each camera:\n"
+        f"{anchors}\n\n"
+        "For EACH camera, use the yellow LTA direction signs to tell the two "
+        "directions apart, then judge congestion SEPARATELY for both "
+        "directions (sg_jb and jb_sg):\n"
         "- sg_jb = heading towards Johor Bahru / Malaysia\n"
         "- jb_sg = heading towards Singapore\n\n"
         "Classify each as exactly one of:\n"
@@ -80,9 +80,11 @@ def build_prompt(anchor):
         "commuter traffic conditions.\n\n"
         "If you cannot locate a sign or judge its lanes, use \"unknown\" for "
         "that direction. Do not guess.\n\n"
-        "Respond with a JSON object only:\n"
-        '{"sg_jb": {"status": "clear|moderate|heavy|unknown", "note": "<one short sentence>"}, '
-        '"jb_sg": {"status": "clear|moderate|heavy|unknown", "note": "<one short sentence>"}}'
+        "Respond with a JSON object ONLY, keyed by camera ID:\n"
+        "{\n"
+        f'  "{cam_ids[0]}": {{"sg_jb": {{"status": "...", "note": "..."}}, "jb_sg": {{"status": "...", "note": "..."}}}},\n'
+        f'  "{cam_ids[1]}": {{"sg_jb": {{"status": "...", "note": "..."}}, "jb_sg": {{"status": "...", "note": "..."}}}}\n'
+        "}"
     )
 
 
@@ -101,19 +103,17 @@ def get_camera_images():
     return out
 
 
-def classify(image_bytes, anchor):
-    """Return {'sg_jb': {status,note}, 'jb_sg': {status,note}} or None."""
-    b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+def classify_pair(image_bytes_list, cams):
+    """Send 2 images in one call. Return {camera_id: {sg_jb:{},jb_sg:{}}} or None."""
+    parts = []
+    for img_bytes in image_bytes_list:
+        b64 = base64.standard_b64encode(img_bytes).decode("utf-8")
+        parts.append({"inline_data": {"mime_type": "image/jpeg", "data": b64}})
+    parts.append({"text": build_pair_prompt(cams)})
+
     body = {
-        "contents": [
-            {
-                "parts": [
-                    {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
-                    {"text": build_prompt(anchor)},
-                ]
-            }
-        ],
-        "generationConfig": {"maxOutputTokens": 300, "responseMimeType": "application/json"},
+        "contents": [{"parts": parts}],
+        "generationConfig": {"maxOutputTokens": 600, "responseMimeType": "application/json"},
     }
     r = requests.post(
         GEMINI_URL,
@@ -121,10 +121,9 @@ def classify(image_bytes, anchor):
         json=body,
         timeout=60,
     )
-    # Retry on 429 (rate limit) — wait and try again, up to 3 times
     if r.status_code == 429:
         for attempt in range(1, 4):
-            wait = 10 * attempt  # 10s, 20s, 30s (exponential-ish backoff)
+            wait = 10 * attempt
             print(f"  ! 429 rate-limited, waiting {wait}s (retry {attempt}/3)")
             time.sleep(wait)
             r = requests.post(
@@ -136,7 +135,7 @@ def classify(image_bytes, anchor):
             if r.status_code != 429:
                 break
     if r.status_code == 429:
-        print("  ! 429 persisted after 3 retries — skipping this camera")
+        print("  ! 429 persisted after 3 retries — skipping this checkpoint")
         return None
     r.raise_for_status()
     try:
@@ -148,7 +147,7 @@ def classify(image_bytes, anchor):
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        print(f"  ! could not parse model output: {text[:120]}")
+        print(f"  ! could not parse model output: {text[:200]}")
         return None
 
 
@@ -176,52 +175,76 @@ def insert_reading(checkpoint, direction, status, note, camera_id, weight):
 
 def main():
     try:
-        images = get_camera_images()
+        lta_links = get_camera_images()
     except Exception as e:
         print(f"FATAL: could not fetch LTA images: {e}")
         sys.exit(1)
 
     written = 0
     attempted = 0
-    for cam in CAMERAS:
-        cid = cam["camera_id"]
-        cp = cam["checkpoint"]
-        url = images.get(cid)
-        if not url:
-            print(f"- {cp} (cam {cid}): no image link from LTA, skipping")
-            continue
-        try:
-            img = requests.get(url, timeout=30).content
-        except Exception as e:
-            print(f"- {cp} (cam {cid}): image download failed ({e}), skipping")
-            continue
 
-        try:
-            result = classify(img, cam["anchor"])
-        except Exception as e:
-            print(f"- {cp} (cam {cid}): classify failed ({e}), skipping")
-            result = None
-        # Delay between cameras to stay under Gemini's rate limit
-        time.sleep(5)
-        if not result:
-            print(f"- {cp} (cam {cid}): not classifiable, writing nothing")
-            continue
+    for cp_name, cams in CHECKPOINTS.items():
+        print(f"\n=== {cp_name.upper()} ({len(cams)} cameras) ===")
 
-        for direction in DIRECTIONS:
-            attempted += 1
-            d = result.get(direction) or {}
-            status = str(d.get("status", "")).lower().strip()
-            tag = f"{cp}/{direction} (cam {cid}, w={cam['weight']})"
-            if status not in VALID:
-                print(f"- {tag}: {status or 'missing'}, writing nothing")
+        # Download images for this checkpoint
+        imgs = []
+        active_cams = []
+        for cam in cams:
+            cid = cam["camera_id"]
+            url = lta_links.get(cid)
+            if not url:
+                print(f"- cam {cid}: no image link from LTA, skipping")
                 continue
-            note = str(d.get("note", "")).strip()[:280]
             try:
-                insert_reading(cp, direction, status, note, cid, cam["weight"])
-                written += 1
-                print(f"- {tag}: {status} - {note}")
+                img_bytes = requests.get(url, timeout=30).content
+                imgs.append(img_bytes)
+                active_cams.append(cam)
             except Exception as e:
-                print(f"- {tag}: DB insert failed ({e})")
+                print(f"- cam {cid}: image download failed ({e}), skipping")
+
+        if not active_cams:
+            print(f"- {cp_name}: no images available, skipping checkpoint")
+            continue
+
+        # If only 1 camera available, still send as a pair prompt (works fine)
+        # but the other camera just won't appear in the response
+        try:
+            result = classify_pair(imgs, active_cams)
+        except Exception as e:
+            print(f"- {cp_name}: classify failed ({e}), skipping")
+            result = None
+
+        # Delay between checkpoints to avoid RPM limit
+        time.sleep(5)
+
+        if not result:
+            print(f"- {cp_name}: not classifiable, writing nothing")
+            continue
+
+        # Unpack per-camera results
+        for cam in active_cams:
+            cid = cam["camera_id"]
+            cam_result = result.get(cid)
+            if not cam_result:
+                print(f"- {cp_name} cam {cid}: missing in Gemini response")
+                continue
+
+            for direction in DIRECTIONS:
+                attempted += 1
+                d = cam_result.get(direction) or {}
+                status = str(d.get("status", "")).lower().strip()
+                tag = f"{cp_name}/{direction} (cam {cid}, w={cam['weight']})"
+                if status not in VALID:
+                    print(f"- {tag}: {status or 'missing'}, writing nothing")
+                    continue
+                note = str(d.get("note", "")).strip()[:280]
+                try:
+                    insert_reading(cp_name, direction, status,
+                                   note, cid, cam["weight"])
+                    written += 1
+                    print(f"- {tag}: {status} - {note}")
+                except Exception as e:
+                    print(f"- {tag}: DB insert failed ({e})")
 
     print(f"\nDone. {written}/{attempted} direction-readings written.")
 
