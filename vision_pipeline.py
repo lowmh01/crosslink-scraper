@@ -29,7 +29,7 @@ import requests
 
 CAMERAS = [
     {"camera_id": "2701", "checkpoint": "woodlands", "weight": 0.7,
-     "anchor": "Camera 2701: This camera shows a bridge with two carriageways. Ignore any sign text — use ONLY physical position:\n- NEAR SIDE (closer to camera, bottom-right of frame): report as jb_sg. Vehicles here face toward the camera (you may see headlights/front bumpers).\n- FAR SIDE (away from camera, top-left of frame, along the water): report as sg_jb. Vehicles here face away from camera (you may see taillights/rear)."},
+     "anchor": "Camera 2701: This camera shows a bridge with two carriageways. Ignore any sign text — use ONLY physical position:\n- NEAR SIDE (closer to camera, bottom-right of frame): report as jb_sg. Vehicles here face toward the camera (you may see headlights/front bumpers).\n- FAR SIDE (away from camera, top-left of frame, along the water): report as sg_jb. Vehicles here face away from camera (you may see taillights/rear).\nBuses are a major part of commuter traffic on this bridge — always count them. A queue of buses means heavy congestion."},
     {"camera_id": "2702", "checkpoint": "woodlands", "weight": 0.3,
      "anchor": "Camera 2702: The yellow signs indicate DESTINATION — where those vehicles are heading TO.\n- 'BKE' sign (left carriageway): these vehicles are heading TO Singapore via BKE = jb_sg.\n- 'CAUSEWAY' sign (right carriageway): these vehicles are heading TO Johor via the Causeway = sg_jb."},
     {"camera_id": "4703", "checkpoint": "tuas", "weight": 0.7,
