@@ -29,13 +29,13 @@ import requests
 
 CAMERAS = [
     {"camera_id": "2701", "checkpoint": "woodlands", "weight": 0.7,
-     "anchor": "Camera 2701: The lanes beside the yellow 'WOODLANDS' sign carry traffic towards Singapore = jb_sg (this side is nearer the camera). The lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb (this side is along the water)."},
+     "anchor": "Camera 2701: The yellow signs indicate DESTINATION — where those vehicles are heading TO.\n- 'WOODLANDS' sign (near the camera, right/bottom of frame): these vehicles are heading TO Singapore = jb_sg.\n- 'JOHOR' sign (far from camera, left/top, along the water): these vehicles are heading TO Johor = sg_jb."},
     {"camera_id": "2702", "checkpoint": "woodlands", "weight": 0.3,
-     "anchor": "Camera 2702: The lanes beside the yellow 'BKE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'CAUSEWAY' sign carry traffic towards Johor = sg_jb (right carriageway)."},
+     "anchor": "Camera 2702: The yellow signs indicate DESTINATION — where those vehicles are heading TO.\n- 'BKE' sign (left carriageway): these vehicles are heading TO Singapore via BKE = jb_sg.\n- 'CAUSEWAY' sign (right carriageway): these vehicles are heading TO Johor via the Causeway = sg_jb."},
     {"camera_id": "4703", "checkpoint": "tuas", "weight": 0.7,
      "anchor": "Camera 4703: The curving ramp beside the yellow 'JOHOR' sign carries traffic towards Johor = sg_jb. The OTHER road visible in the upper-right area of the frame, running along the bridge toward the checkpoint buildings, carries traffic towards Singapore = jb_sg. Do NOT count trucks or vehicles parked in staging areas beside the road — only judge vehicles actually on the travel lanes of each carriageway."},
     {"camera_id": "4713", "checkpoint": "tuas", "weight": 0.3,
-     "anchor": "Camera 4713: The lanes beside the yellow 'AYE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb (right carriageway)."},
+     "anchor": "Camera 4713: The yellow signs indicate DESTINATION — where those vehicles are heading TO.\n- 'AYE' sign (left carriageway): these vehicles are heading TO Singapore via AYE = jb_sg.\n- 'JOHOR' sign (right carriageway): these vehicles are heading TO Johor = sg_jb."},
 ]
 
 # Group cameras by checkpoint for batching
