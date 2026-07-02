@@ -41,7 +41,7 @@ CAMERAS = [
     {"camera_id": "2702", "checkpoint": "woodlands", "weight": 0.3,
      "anchor": "The lanes beside the yellow 'BKE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'CAUSEWAY' sign carry traffic towards Johor = sg_jb (right carriageway)."},
     {"camera_id": "4703", "checkpoint": "tuas", "weight": 0.7,
-     "anchor": "The ramp/lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb. The opposite carriageway, leading away from the JOHOR ramp towards the Tuas checkpoint plaza, carries traffic towards Singapore = jb_sg."},
+     "anchor": "Camera 4703: The curving ramp beside the yellow 'JOHOR' sign carries traffic towards Johor = sg_jb. The OTHER road visible in the upper-right area of the frame, running along the bridge toward the checkpoint buildings, carries traffic towards Singapore = jb_sg. Do NOT count trucks or vehicles parked in staging areas beside the road — only judge vehicles actually on the travel lanes of each carriageway."},
     {"camera_id": "4713", "checkpoint": "tuas", "weight": 0.3,
      "anchor": "The lanes beside the yellow 'AYE' sign carry traffic towards Singapore = jb_sg (left carriageway). The lanes beside the yellow 'JOHOR' sign carry traffic towards Johor = sg_jb (right carriageway)."},
 ]
@@ -74,6 +74,10 @@ def build_prompt(anchor):
         '- "clear": light, moving freely, low density\n'
         '- "moderate": noticeable build-up, dense but still moving\n'
         '- "heavy": packed, queued, or stationary\n\n'
+        "IMPORTANT: Only evaluate congestion based on cars, motorcycles, and "
+        "buses. Ignore large trucks, container trucks, trailers, and lorries "
+        "— they are usually parked in staging areas and do not reflect "
+        "commuter traffic conditions.\n\n"
         "If you cannot locate a sign or judge its lanes, use \"unknown\" for "
         "that direction. Do not guess.\n\n"
         "Respond with a JSON object only:\n"
@@ -120,8 +124,9 @@ def classify(image_bytes, anchor):
     # Retry on 429 (rate limit) — wait and try again, up to 3 times
     if r.status_code == 429:
         for attempt in range(1, 4):
-            print(f"  ! 429 rate-limited, waiting 10s (retry {attempt}/3)")
-            time.sleep(10)
+            wait = 10 * attempt  # 10s, 20s, 30s (exponential-ish backoff)
+            print(f"  ! 429 rate-limited, waiting {wait}s (retry {attempt}/3)")
+            time.sleep(wait)
             r = requests.post(
                 GEMINI_URL,
                 params={"key": os.environ["GEMINI_API_KEY"]},
@@ -130,6 +135,9 @@ def classify(image_bytes, anchor):
             )
             if r.status_code != 429:
                 break
+    if r.status_code == 429:
+        print("  ! 429 persisted after 3 retries — skipping this camera")
+        return None
     r.raise_for_status()
     try:
         text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -188,7 +196,11 @@ def main():
             print(f"- {cp} (cam {cid}): image download failed ({e}), skipping")
             continue
 
-        result = classify(img, cam["anchor"])
+        try:
+            result = classify(img, cam["anchor"])
+        except Exception as e:
+            print(f"- {cp} (cam {cid}): classify failed ({e}), skipping")
+            result = None
         # Delay between cameras to stay under Gemini's rate limit
         time.sleep(5)
         if not result:
