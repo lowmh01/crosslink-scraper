@@ -1,0 +1,39 @@
+name: Hourly Summary Aggregation
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        type: choice
+        options: [daily, backfill]
+        default: daily
+  # Fallback only - primary trigger is cron-job.org hitting workflow_dispatch.
+  # 16:45 UTC = 00:45 SGT, aggregating the day that just ended.
+  schedule:
+    - cron: "45 16 * * *"
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Run aggregation
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "backfill" ]; then
+            python aggregate_hourly.py --backfill
+          else
+            python aggregate_hourly.py
+          fi
