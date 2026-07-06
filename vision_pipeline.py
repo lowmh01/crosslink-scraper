@@ -1,12 +1,13 @@
 """
 vision_pipeline.py  (Gemini Flash-Lite, batched by checkpoint, 2701 diagonal crop)
 -----------------------------------------------------------------------------------
-Camera 2701 is diagonally split into two masked crops (sg_jb / jb_sg) so Gemini
+Cameras 2701 and 4703 are split into two masked crops (sg_jb / jb_sg) so Gemini
 never has to judge direction — it only sees one carriageway per crop.
-All other cameras use sign-based anchors in a normal batch.
+2701 uses a straight diagonal line; 4703 uses a polyline divider traced from a
+hand-annotated frame. Remaining cameras use sign-based anchors.
 
   Woodlands: 2701 (2 crops) + 2702  → 1 API call (3 images)
-  Tuas:      4703 + 4713            → 1 API call (2 images)
+  Tuas:      4703 (2 crops) + 4713  → 1 API call (3 images)
   Total: 2 calls per run.
 
 Required env vars: LTA_API_KEY, GEMINI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY
@@ -26,8 +27,7 @@ CAMERAS = [
     {"camera_id": "2701", "checkpoint": "woodlands", "weight": 0.7},
     {"camera_id": "2702", "checkpoint": "woodlands", "weight": 0.3,
      "anchor": "Camera 2702: The yellow signs indicate DESTINATION — where those vehicles are heading TO.\n- 'BKE' sign (left carriageway): these vehicles are heading TO Singapore via BKE = jb_sg.\n- 'CAUSEWAY' sign (right carriageway): these vehicles are heading TO Johor via the Causeway = sg_jb."},
-    {"camera_id": "4703", "checkpoint": "tuas", "weight": 0.7,
-     "anchor": "Camera 4703: The curving ramp beside the yellow 'JOHOR' sign carries traffic towards Johor = sg_jb. The OTHER road visible in the upper-right area of the frame, running along the bridge toward the checkpoint buildings, carries traffic towards Singapore = jb_sg. Do NOT count trucks or vehicles parked in staging areas beside the road — only judge vehicles actually on the travel lanes of each carriageway."},
+    {"camera_id": "4703", "checkpoint": "tuas", "weight": 0.7},
     {"camera_id": "4713", "checkpoint": "tuas", "weight": 0.3,
      "anchor": "Camera 4713: The yellow signs indicate DESTINATION — where those vehicles are heading TO.\n- 'AYE' sign (left carriageway): these vehicles are heading TO Singapore via AYE = jb_sg.\n- 'JOHOR' sign (right carriageway): these vehicles are heading TO Johor = sg_jb."},
 ]
@@ -40,6 +40,18 @@ CROP_2701 = {
     "above": "sg_jb",
     "below": "jb_sg",     # below the line = toward Singapore (4 wide lanes)
 }
+
+# 4703 crop config: straight divider traced from a hand-annotated native
+# 1920x1080 LTA frame. Above/right of the line = jb_sg (far carriageway +
+# arrival road into Tuas Checkpoint). Below/left = sg_jb (near bridge
+# carriageway + departure ramp + curved plaza road). The swing lane sits on
+# the sg_jb side by design: contraflow (SG customs lending an sg_jb lane to
+# jb_sg at night) is rare, and this placement is correct the rest of the time.
+# Coordinates are (x_pct, y_pct) of the frame, resolution-independent.
+CROP_4703_DIVIDER = [
+    (0.0852, 0.0),      # line enters at top edge
+    (1.0, 0.6035),      # line exits at right edge
+]
 
 CHECKPOINTS = {}
 for _c in CAMERAS:
@@ -76,6 +88,31 @@ def crop_2701(img_bytes):
     return buf_a.getvalue(), buf_b.getvalue()
 
 
+def crop_4703(img_bytes):
+    """Split 4703 into two masked halves along the traced polyline divider.
+
+    Returns (sg_jb_bytes, jb_sg_bytes)."""
+    img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+    w, h = img.size
+    div = [(x * w, y * h) for x, y in CROP_4703_DIVIDER]
+    poly_above = div + [(w, 0)]                    # jb_sg region
+    poly_below = div + [(w, h), (0, h), (0, 0)]    # sg_jb region
+
+    # sg_jb crop: mask out the jb_sg region
+    sg_jb = img.copy()
+    ImageDraw.Draw(sg_jb).polygon(poly_above, fill=(0, 0, 0))
+    buf_s = io.BytesIO()
+    sg_jb.save(buf_s, format="JPEG", quality=85)
+
+    # jb_sg crop: mask out the sg_jb region
+    jb_sg = img.copy()
+    ImageDraw.Draw(jb_sg).polygon(poly_below, fill=(0, 0, 0))
+    buf_j = io.BytesIO()
+    jb_sg.save(buf_j, format="JPEG", quality=85)
+
+    return buf_s.getvalue(), buf_j.getvalue()
+
+
 def build_woodlands_prompt():
     """Prompt for Woodlands: 2701 (2 crops) + 2702."""
     cam2702 = next(c for c in CAMERAS if c["camera_id"] == "2702")
@@ -104,24 +141,32 @@ def build_woodlands_prompt():
 
 
 def build_tuas_prompt():
-    """Prompt for Tuas: 4703 + 4713."""
-    cam4703 = next(c for c in CAMERAS if c["camera_id"] == "4703")
+    """Prompt for Tuas: 4703 (2 crops) + 4713."""
     cam4713 = next(c for c in CAMERAS if c["camera_id"] == "4713")
     return (
-        "You are given 2 traffic camera images from Tuas Checkpoint.\n\n"
-        f"Image 1: {cam4703['anchor']}\nReport as \"4703\".\n\n"
-        f"Image 2: {cam4713['anchor']}\nReport as \"4713\".\n\n"
-        "For EACH camera, judge congestion SEPARATELY for both directions "
-        "(sg_jb and jb_sg):\n"
+        "You are given 3 traffic camera images from Tuas Checkpoint.\n\n"
+        "Image 1: One carriageway of the Second Link crossing (the visible road "
+        "portions only — the blacked-out area is masked and must be completely "
+        "ignored). Judge congestion of the VISIBLE roads. "
+        "Report as \"4703_sg_jb\".\n\n"
+        "Image 2: The other carriageway of the same crossing (again, only judge "
+        "the visible roads, ignore the black mask). "
+        "Report as \"4703_jb_sg\".\n\n"
+        f"Image 3: {cam4713['anchor']}\nReport as \"4713\" with both sg_jb and jb_sg.\n\n"
         "Classify each as exactly one of:\n"
         '- "clear": light, moving freely, low density\n'
         '- "moderate": noticeable build-up, dense but still moving\n'
         '- "heavy": packed, queued, or stationary\n\n'
         "IMPORTANT: Only evaluate based on cars, motorcycles, and buses. "
-        "Ignore large trucks, container trucks, trailers, and lorries.\n\n"
+        "Ignore large trucks, container trucks, trailers, and lorries. "
+        "Buses are a major part of commuter traffic — a queue of buses means heavy. "
+        "Do NOT count vehicles parked in staging areas beside the road — only "
+        "judge vehicles actually on the travel lanes. An empty or near-empty "
+        "road means clear.\n\n"
         "Respond with JSON ONLY:\n"
         "{\n"
-        '  "4703": {"sg_jb": {"status": "...", "note": "..."}, "jb_sg": {"status": "...", "note": "..."}},\n'
+        '  "4703_sg_jb": {"status": "...", "note": "..."},\n'
+        '  "4703_jb_sg": {"status": "...", "note": "..."},\n'
         '  "4713": {"sg_jb": {"status": "...", "note": "..."}, "jb_sg": {"status": "...", "note": "..."}}\n'
         "}"
     )
@@ -291,20 +336,35 @@ def main():
     # ===== TUAS =====
     print("\n=== TUAS ===")
     imgs_tu = []
-    active_tuas = []
+    cam4703_ok = False
+    cam4713_ok = False
 
-    for cam in [c for c in CAMERAS if c["checkpoint"] == "tuas"]:
-        cid = cam["camera_id"]
-        url = lta_links.get(cid)
-        if url:
-            try:
-                imgs_tu.append(download_image(url))
-                active_tuas.append(cam)
-                print(f"- {cid}: downloaded")
-            except Exception as e:
-                print(f"- {cid}: download failed ({e})")
-        else:
-            print(f"- {cid}: no image link from LTA")
+    # 4703: download + polyline crop into two halves
+    url_4703 = lta_links.get("4703")
+    if url_4703:
+        try:
+            raw = download_image(url_4703)
+            sg_jb_crop, jb_sg_crop = crop_4703(raw)
+            imgs_tu.append(sg_jb_crop)   # Image 1
+            imgs_tu.append(jb_sg_crop)   # Image 2
+            cam4703_ok = True
+            print("- 4703: downloaded + cropped into 2 halves")
+        except Exception as e:
+            print(f"- 4703: crop failed ({e})")
+    else:
+        print("- 4703: no image link from LTA")
+
+    # 4713: download normally
+    url_4713 = lta_links.get("4713")
+    if url_4713:
+        try:
+            imgs_tu.append(download_image(url_4713))  # Image 3
+            cam4713_ok = True
+            print("- 4713: downloaded")
+        except Exception as e:
+            print(f"- 4713: download failed ({e})")
+    else:
+        print("- 4713: no image link from LTA")
 
     if imgs_tu:
         try:
@@ -314,13 +374,20 @@ def main():
             result = None
 
         if result:
-            for cam in active_tuas:
-                cid = cam["camera_id"]
-                cam_r = result.get(cid) or {}
+            if cam4703_ok:
+                # 4703 crops: result keyed as "4703_sg_jb" and "4703_jb_sg"
+                attempted += 2
+                written += write_result("sg_jb", result.get("4703_sg_jb"),
+                                        "tuas", "4703", 0.7)
+                written += write_result("jb_sg", result.get("4703_jb_sg"),
+                                        "tuas", "4703", 0.7)
+            if cam4713_ok:
+                # 4713: normal keyed result
+                cam_r = result.get("4713") or {}
                 for d in DIRECTIONS:
                     attempted += 1
                     written += write_result(d, cam_r.get(d),
-                                            "tuas", cid, cam["weight"])
+                                            "tuas", "4713", 0.3)
     else:
         print("- tuas: no images, skipping")
 
