@@ -1,0 +1,30 @@
+# .github/workflows/events_scraper.yml  (crosslink-scraper repo)
+# Daily Ticketmaster SG events sync. Dispatched by cron-job.org like the
+# other workflows; the native schedule below is a fallback only.
+
+name: Events - Ticketmaster SG
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 22 * * *"   # 06:30 SGT daily, fallback if dispatch fails
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests
+
+      - name: Run scraper
+        env:
+          TM_API_KEY: ${{ secrets.TM_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ticketmaster.py
