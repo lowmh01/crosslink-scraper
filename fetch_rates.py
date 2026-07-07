@@ -11,6 +11,32 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 results = {}
+MID_RATE = None
+
+
+def fetch_mid_rate():
+    """拿中间价做 sanity check 用(ECB via Frankfurter)。失败不影响主流程,只是跳过校验。"""
+    global MID_RATE
+    try:
+        r = requests.get(
+            "https://api.frankfurter.dev/v1/latest?base=SGD&symbols=MYR", timeout=10)
+        MID_RATE = r.json()["rates"]["MYR"]
+        print(f"✓ Mid-market (ECB): {MID_RATE}")
+    except Exception as e:
+        MID_RATE = None
+        print(f"✗ Mid-market unavailable, sanity check skipped: {e}")
+
+
+def sanity_check(platform):
+    """平台汇率偏离中间价 >3% 视为抓错,置 None(save 时会自动用上一笔补)。"""
+    rate = results.get(platform, {}).get("rate")
+    if rate is None or MID_RATE is None:
+        return
+    if abs(rate - MID_RATE) / MID_RATE > 0.03:
+        print(
+            f"⚠ {platform}: {rate} deviates >3% from mid {MID_RATE}, discarded")
+        results[platform]["rate"] = None
+        results[platform]["status"] = "sanity_failed"
 
 
 def make_browser(p):
@@ -100,7 +126,7 @@ def fetch_panda_remit():
             browser, page = make_browser(p)
             page.goto(
                 "https://www.pandaremit.com/en/sgp/send-money-to-malaysia", timeout=30000)
-            page.wait_for_timeout(8000)  # ← 改成 8000
+            page.wait_for_timeout(8000)
             body = page.inner_text("body")
             browser.close()
 
@@ -121,6 +147,46 @@ def fetch_panda_remit():
         results["panda_remit"] = {"rate": None,
                                   "status": "error", "error": str(e)}
         print(f"✗ Panda Remit: {e}")
+
+
+def fetch_instarem():
+    try:
+        with sync_playwright() as p:
+            browser, page = make_browser(p)
+            page.goto(
+                "https://www.instarem.com/en-sg/send-money-to-malaysia/", timeout=30000)
+            # 等到汇率真的被 JS 填进页面,而不是固定 sleep;
+            # 超时也不抛,继续往下走,抓不到会自然落到 None
+            try:
+                page.wait_for_function(
+                    r"() => /\d\.\d{4}\s*MYR/.test(document.body.innerText)",
+                    timeout=15000
+                )
+            except Exception:
+                pass
+            body = page.inner_text("body")
+            browser.close()
+
+        rate = None
+        # 优先:锚定在 "Our rate" 标签附近提取,
+        # 避免抓到页面下方 "Compare with banks" 表格里别家银行的汇率
+        m = re.search(r'Our rates?[\s\S]{0,80}?(\d\.\d{4,5})', body)
+        if m:
+            rate = float(m.group(1))
+        else:
+            m = re.search(r'(\d\.\d{4,5})\s*MYR', body)
+            if m:
+                rate = float(m.group(1))
+        # 注意:这里刻意不做 3.0–4.0 的全文 fallback——
+        # 这个页面下方有银行汇率比较表,乱抓会以 Instarem 的名义发布别家的汇率。
+        # 抓不到就返回 None,save 时用上一笔补,比错数字安全。
+
+        results["instarem"] = {"rate": rate, "fee": "Low fee", "status": "ok"}
+        print(f"✓ Instarem: {rate}")
+    except Exception as e:
+        results["instarem"] = {"rate": None,
+                               "status": "error", "error": str(e)}
+        print(f"✗ Instarem: {e}")
 
 
 def save_to_supabase():
@@ -154,6 +220,7 @@ def save_to_supabase():
             "cimb": fallback("cimb"),
             "western_union": fallback("western_union"),
             "panda_remit": fallback("panda_remit"),
+            "instarem": fallback("instarem"),
         }
 
         res = requests.post(url, json=row, headers=headers)
@@ -168,10 +235,17 @@ def save_to_supabase():
 if __name__ == "__main__":
     print(
         f"\nFetching rates — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n")
+    fetch_mid_rate()
     fetch_wise()
     fetch_cimb()
     fetch_western_union()
     fetch_panda_remit()
+    fetch_instarem()
+
+    # 全平台 sanity check:偏离中间价 >3% 的一律丢弃
+    for platform in ["wise", "cimb", "western_union", "panda_remit", "instarem"]:
+        sanity_check(platform)
+
     print("\n── Results ──")
     print(json.dumps(results, indent=2))
     save_to_supabase()
