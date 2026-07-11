@@ -27,12 +27,8 @@ SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 # ---------------------------------------------------------------------------
 # RSS SOURCES
 # ---------------------------------------------------------------------------
-# Each entry: { "name": ..., "url": ..., "needs_filter": bool }
-# needs_filter=True  → only keep articles matching JB-SG keywords
-# needs_filter=False → every article is assumed relevant (niche feed)
-
 RSS_FEEDS = [
-    # Google News — tight corridor-specific search
+    # Google News — broad corridor search
     {
         "name": "Google News (MY-SG corridor)",
         "url": "https://news.google.com/rss/search?q=%22johor+singapore%22+OR+%22causeway+checkpoint%22+OR+%22woodlands+checkpoint%22+OR+%22tuas+checkpoint%22+OR+%22second+link+tuas%22+OR+%22VEP+malaysia%22+OR+%22VEP+singapore%22&hl=en&gl=SG&ceid=SG:en",
@@ -43,63 +39,100 @@ RSS_FEEDS = [
         "url": "https://news.google.com/rss/search?q=%22RTS+Link%22+OR+%22johor+singapore+rail%22&hl=en&gl=SG&ceid=SG:en",
         "needs_filter": False,
     },
+    # Work passes, employment, cross-border work
+    {
+        "name": "Google News (MY-SG work)",
+        "url": "https://news.google.com/rss/search?q=%28%22work+pass%22+OR+%22employment+pass%22+OR+%22s+pass%22+OR+%22work+permit%22%29+%28singapore+malaysia+OR+johor%29&hl=en&gl=SG&ceid=SG:en",
+        "needs_filter": True,
+    },
+    # Passport, immigration policy
+    {
+        "name": "Google News (passport & immigration)",
+        "url": "https://news.google.com/rss/search?q=%28%22malaysia+passport%22+OR+%22autogate%22+OR+%22ICA+checkpoint%22+OR+%22immigration+johor%22+OR+%22immigration+singapore%22%29&hl=en&gl=SG&ceid=SG:en",
+        "needs_filter": True,
+    },
+    # Causeway accidents, traffic incidents
+    {
+        "name": "Google News (causeway incidents)",
+        "url": "https://news.google.com/rss/search?q=%28accident+OR+crash+OR+jam+OR+congestion%29+%28causeway+OR+%22tuas+checkpoint%22+OR+%22second+link%22%29&hl=en&gl=SG&ceid=SG:en",
+        "needs_filter": False,
+    },
+    # Cross-border bus & transport
+    {
+        "name": "Google News (cross-border transport)",
+        "url": "https://news.google.com/rss/search?q=%28%22cross+border+bus%22+OR+%22causeway+link%22+OR+%22transtar%22+OR+%22170X%22+OR+%22CW1%22+OR+%22shuttle+bus%22%29+%28johor+OR+singapore+OR+causeway%29&hl=en&gl=SG&ceid=SG:en",
+        "needs_filter": False,
+    },
 ]
 
 # ---------------------------------------------------------------------------
 # RELEVANCE KEYWORDS — article must contain at least one to pass filter
 # ---------------------------------------------------------------------------
-# Groups: if ANY keyword in a group matches title OR description, it's relevant.
-# We use groups so compound terms like "work pass" match as a phrase.
-
 RELEVANCE_KEYWORDS = [
-    # --- Border crossings (uniquely JB-SG) ---
+    # --- Border crossings ---
     "causeway", "second link",
     "woodlands checkpoint", "tuas checkpoint",
-    # --- Cross-border transport (uniquely JB-SG) ---
+    # --- Cross-border transport ---
     "rts link", "ktm shuttle",
     "bukit chagar", "woodlands north",
     "transtar", "causeway link",
-    # --- VEP (uniquely MY-SG) ---
+    # --- VEP ---
     "vep", "vehicle entry permit", "autopass",
-    # --- Geographic anchors (explicit corridor) ---
+    # --- Geographic anchors ---
     "johor singapore", "singapore johor",
     "johor-singapore", "singapore-johor",
     "malaysia singapore", "singapore malaysia",
     "jb-sg", "jb sg", "jb to sg", "sg to jb",
-    # --- Currency pair (uniquely MY-SG) ---
+    # --- Currency pair ---
     "sgd myr", "myr sgd", "sgd to myr", "myr to sgd",
+    # --- Work & employment (cross-border) ---
+    "work pass", "employment pass", "s pass", "work permit",
+    "ep application", "mom singapore", "foreign worker",
+    "cpf contribution", "levy", "compass framework",
+    # --- Passport & immigration ---
+    "malaysia passport", "passport renewal", "autogate",
+    "ica checkpoint", "immigration clearance",
+    "mydigital id", "mysejahtera",
+    # --- Accidents & incidents on corridor ---
+    "causeway accident", "causeway crash", "causeway jam",
+    "tuas accident", "second link accident",
+    "causeway congestion", "checkpoint queue",
+    # --- Cross-border bus & transport ---
+    "cross border bus", "cross-border bus",
+    "causeway link", "transtar", "handal indah",
+    "170x", "cw1", "cw2", "cw3", "cw4", "cw5", "cw6", "cw7",
+    "sbs transit 170", "shuttle bus causeway",
+    "bus fare causeway", "bus route johor",
+    "grab cross border", "taxi causeway",
 ]
 
-# Pre-compile for speed
-_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE) for kw in RELEVANCE_KEYWORDS]
+_kw_patterns = [re.compile(re.escape(kw), re.IGNORECASE)
+                for kw in RELEVANCE_KEYWORDS]
 
 # ---------------------------------------------------------------------------
-# EXCLUSION KEYWORDS — reject articles that are crime/incident news,
-# not useful cross-border information for commuters
+# EXCLUSION KEYWORDS — reject only crime/vice, not traffic incidents
 # ---------------------------------------------------------------------------
 EXCLUDE_KEYWORDS = [
-    # Crime / enforcement
-    "heroin", "methamphetamine", "cocaine", "drug", "cannabis",
-    "smuggl", "contraband", "cigarettes", "duty-unpaid",
+    # Drug crime
+    "heroin", "methamphetamine", "cocaine", "cannabis",
+    # Smuggling / contraband
+    "smuggl", "contraband", "duty-unpaid",
+    # Violent crime
+    "murder", "assault", "robbery", "theft",
     "jailed", "sentenced", "arrested", "charged", "prison",
-    "murder", "assault", "robbery", "theft", "scam",
-    # Accidents / incidents
-    "caught fire", "fire broke", "accident", "crash",
-    "speed camera", "speeding",
-    # Other noise
-    "casino", "gambling",
+    # Vice / noise
+    "casino", "gambling", "scam",
 ]
 
-_exclude_patterns = [re.compile(re.escape(kw), re.IGNORECASE) for kw in EXCLUDE_KEYWORDS]
+_exclude_patterns = [re.compile(re.escape(kw), re.IGNORECASE)
+                     for kw in EXCLUDE_KEYWORDS]
 
 
 def is_relevant(title, description):
     """Return True if relevant AND not excluded."""
     text = f"{title} {description}"
-    # Must match at least one corridor keyword
     if not any(p.search(text) for p in _kw_patterns):
         return False
-    # Must NOT match any exclusion keyword
     if any(p.search(text) for p in _exclude_patterns):
         return False
     return True
@@ -122,7 +155,6 @@ def parse_published(entry):
 
 def extract_image(entry):
     """Try to find an image URL from RSS entry metadata."""
-    # media:content or media:thumbnail
     for media in entry.get("media_content", []):
         url = media.get("url", "")
         if url and ("jpg" in url or "jpeg" in url or "png" in url or "webp" in url or "image" in media.get("medium", "")):
@@ -130,7 +162,6 @@ def extract_image(entry):
     media_thumb = entry.get("media_thumbnail")
     if media_thumb and isinstance(media_thumb, list) and media_thumb[0].get("url"):
         return media_thumb[0]["url"]
-    # enclosure
     for enc in entry.get("enclosures", []):
         if "image" in enc.get("type", ""):
             return enc.get("href") or enc.get("url")
@@ -159,7 +190,8 @@ def fetch_articles(feed_config):
 
     for entry in d.entries:
         title = (entry.get("title") or "").strip()
-        description = (entry.get("summary") or entry.get("description") or "").strip()
+        description = (entry.get("summary") or entry.get(
+            "description") or "").strip()
         link = entry.get("link", "")
 
         if not title or not link:
@@ -196,7 +228,6 @@ def fetch_articles(feed_config):
             "is_active": False,
             "is_featured": False,
             "created_at": published.isoformat(),
-            # Auto-expire news after 30 days
             "expires_at": (published + timedelta(days=30)).isoformat(),
         })
 
@@ -208,12 +239,11 @@ def fetch_articles(feed_config):
 # SUPABASE
 # ---------------------------------------------------------------------------
 def normalize_title(title):
-    """Normalize title for fuzzy dedup — lowercase, strip punctuation, first 50 chars."""
+    """Normalize title for fuzzy dedup."""
     t = re.sub(r"[^a-z0-9 ]", "", title.lower()).strip()
     return t[:50]
 
 
-# ---------------------------------------------------------------------------
 def get_existing_articles():
     """Fetch existing news URLs and titles from explore_items for dedup."""
     url = f"{SUPABASE_URL}/rest/v1/explore_items?type=eq.news&select=cta_url,title"
@@ -225,7 +255,8 @@ def get_existing_articles():
     resp.raise_for_status()
     rows = resp.json()
     urls = {row["cta_url"] for row in rows if row.get("cta_url")}
-    titles = {normalize_title(row["title"]) for row in rows if row.get("title")}
+    titles = {normalize_title(row["title"])
+              for row in rows if row.get("title")}
     return urls, titles
 
 
@@ -243,7 +274,6 @@ def insert_articles(articles):
         "Prefer": "return=minimal",
     }
 
-    # Insert in batches of 20
     for i in range(0, len(articles), 20):
         batch = articles[i:i + 20]
         resp = requests.post(url, headers=headers, json=batch, timeout=30)
@@ -254,7 +284,7 @@ def insert_articles(articles):
 
 
 def cleanup_expired():
-    """Deactivate news items older than 30 days (belt-and-suspenders with expires_at)."""
+    """Deactivate news items older than 30 days."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     url = (
         f"{SUPABASE_URL}/rest/v1/explore_items"
@@ -266,7 +296,8 @@ def cleanup_expired():
         "Content-Type": "application/json",
         "Prefer": "return=minimal",
     }
-    resp = requests.patch(url, headers=headers, json={"is_active": False}, timeout=30)
+    resp = requests.patch(url, headers=headers, json={
+                          "is_active": False}, timeout=30)
     if resp.status_code in (200, 204):
         print("  ✓ Expired old news deactivated")
     else:
@@ -278,15 +309,15 @@ def cleanup_expired():
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 50)
-    print(f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(
+        f"News scraper — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("=" * 50)
 
-    # 1. Fetch existing URLs + titles for dedup
     print("\n[1/4] Loading existing articles for dedup...")
     existing_urls, existing_titles = get_existing_articles()
-    print(f"  Found {len(existing_urls)} existing news URLs, {len(existing_titles)} titles")
+    print(
+        f"  Found {len(existing_urls)} existing news URLs, {len(existing_titles)} titles")
 
-    # 2. Fetch from all RSS feeds
     print("\n[2/4] Fetching RSS feeds...")
     all_articles = []
     for feed in RSS_FEEDS:
@@ -295,7 +326,6 @@ def main():
 
     print(f"\n  Total relevant articles: {len(all_articles)}")
 
-    # 3. Deduplicate by URL + title similarity
     print("\n[3/4] Deduplicating...")
     seen_urls = set()
     seen_titles = set()
@@ -303,10 +333,8 @@ def main():
     for article in all_articles:
         url = article["cta_url"]
         norm_title = normalize_title(article["title"])
-        # Skip if URL already in DB or batch
         if url in existing_urls or url in seen_urls:
             continue
-        # Skip if a very similar title already exists (same story, different source)
         if norm_title in existing_titles or norm_title in seen_titles:
             continue
         seen_urls.add(url)
@@ -319,7 +347,6 @@ def main():
         for a in new_articles:
             print(f"    [{a['tag']}] {a['title'][:60]}")
 
-    # 4. Insert + cleanup
     print("\n[4/4] Inserting into Supabase...")
     insert_articles(new_articles)
 
