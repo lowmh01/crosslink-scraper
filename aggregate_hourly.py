@@ -37,7 +37,8 @@ from zoneinfo import ZoneInfo
 import requests
 
 SGT = ZoneInfo("Asia/Singapore")
-SCORE = {"clear": 1, "moderate": 2, "heavy": 3}
+# scale: 0=clear, 1=moderate, 2=heavy — matches frontend display thresholds
+SCORE = {"clear": 0, "moderate": 1, "heavy": 2}
 PAGE_SIZE = 1000  # PostgREST pagination
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -151,7 +152,7 @@ def aggregate_day(day, holidays):
     out = []
     for (hour, checkpoint, direction), c in sorted(buckets.items()):
         n_total = c["clear"] + c["moderate"] + c["heavy"]
-        score_sum = c["clear"] * 1 + c["moderate"] * 2 + c["heavy"] * 3
+        score_sum = c["clear"] * 0 + c["moderate"] * 1 + c["heavy"] * 2
         out.append({
             "day": day.isoformat(),
             "hour": hour,
