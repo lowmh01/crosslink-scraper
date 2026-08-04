@@ -81,7 +81,8 @@ def crop_4703_jb_sg(img_bytes):
 def build_woodlands_prompt():
     """Prompt for Woodlands: 2701 jb_sg crop + 2702 sg_jb only."""
     return (
-        "You are given 2 traffic camera images from Woodlands Checkpoint.\n\n"
+        "You are given 2 traffic camera images from the Woodlands border "
+        "checkpoint between Singapore and Johor Bahru.\n\n"
         "Image 1: The Causeway bridge — the visible road portion only (the "
         "blacked-out area is masked and must be completely ignored). "
         "This carriageway carries traffic heading TO Singapore (jb_sg). "
@@ -90,13 +91,25 @@ def build_woodlands_prompt():
         "ONLY classify the RIGHT carriageway marked 'CAUSEWAY' — these vehicles "
         "are heading TO Johor (sg_jb). Completely ignore the left carriageway "
         "marked 'BKE'. Report as \"2702_sg_jb\".\n\n"
+        "CONTEXT: These cameras are at a border crossing. Some vehicles queuing "
+        "near the checkpoint entrance is NORMAL daytime activity — it does not "
+        "automatically mean heavy. Only classify heavy when congestion is "
+        "genuinely severe.\n\n"
         "Classify each as exactly one of:\n"
-        '- "clear": light, moving freely, low density\n'
-        '- "moderate": noticeable build-up, dense but still moving\n'
-        '- "heavy": packed, queued, or stationary\n\n'
-        "IMPORTANT: Only evaluate based on cars, motorcycles, and buses. "
-        "Ignore large trucks, container trucks, trailers, and lorries. "
-        "Buses are a major part of commuter traffic — a queue of buses means heavy.\n\n"
+        '- "clear": road mostly empty, only a few scattered vehicles with '
+        "large gaps, no queue formation. Typical of late night / early morning.\n"
+        '- "moderate": steady flow of vehicles that are visibly MOVING. A short '
+        "queue may exist but vehicles maintain spacing and the queue does NOT "
+        "fill the entire visible road. Typical of normal daytime hours.\n"
+        '- "heavy": a LONG, DENSE queue — vehicles packed bumper-to-bumper with '
+        "minimal gaps, filling most or all of the visible road span. Traffic is "
+        "stationary or barely crawling. Typical of peak-hour congestion only.\n\n"
+        "IMPORTANT:\n"
+        "- Only evaluate cars, motorcycles, and buses. Ignore large trucks, "
+        "container trucks, trailers, and lorries entirely.\n"
+        "- A queue of buses counts — buses are commuter traffic.\n"
+        "- A moving flow of vehicles, even if continuous, is moderate NOT heavy. "
+        "Reserve heavy for genuinely backed-up, dense, slow or stopped queues.\n\n"
         "Respond with JSON ONLY:\n"
         "{\n"
         '  "2701_jb_sg": {"status": "...", "note": "..."},\n'
@@ -108,7 +121,8 @@ def build_woodlands_prompt():
 def build_tuas_prompt():
     """Prompt for Tuas: 4703 jb_sg crop + 4713 sg_jb only."""
     return (
-        "You are given 2 traffic camera images from Tuas Checkpoint.\n\n"
+        "You are given 2 traffic camera images from the Tuas border "
+        "checkpoint between Singapore and Johor Bahru.\n\n"
         "Image 1: The Second Link bridge — the visible road portion only (the "
         "blacked-out area is masked and must be completely ignored). "
         "This carriageway carries traffic heading TO Singapore (jb_sg). "
@@ -117,16 +131,27 @@ def build_tuas_prompt():
         "ONLY classify the RIGHT carriageway marked 'JOHOR' — these vehicles "
         "are heading TO Johor (sg_jb). Completely ignore the left carriageway "
         "marked 'AYE'. Report as \"4713_sg_jb\".\n\n"
+        "CONTEXT: These cameras are at a border crossing. Some vehicles queuing "
+        "near the checkpoint entrance is NORMAL daytime activity — it does not "
+        "automatically mean heavy. Only classify heavy when congestion is "
+        "genuinely severe.\n\n"
         "Classify each as exactly one of:\n"
-        '- "clear": light, moving freely, low density\n'
-        '- "moderate": noticeable build-up, dense but still moving\n'
-        '- "heavy": packed, queued, or stationary\n\n'
-        "IMPORTANT: Only evaluate based on cars, motorcycles, and buses. "
-        "Ignore large trucks, container trucks, trailers, and lorries. "
-        "Buses are a major part of commuter traffic — a queue of buses means heavy. "
-        "Do NOT count vehicles parked in staging areas beside the road — only "
-        "judge vehicles actually on the travel lanes. An empty or near-empty "
-        "road means clear.\n\n"
+        '- "clear": road mostly empty, only a few scattered vehicles with '
+        "large gaps, no queue formation. Typical of late night / early morning.\n"
+        '- "moderate": steady flow of vehicles that are visibly MOVING. A short '
+        "queue may exist but vehicles maintain spacing and the queue does NOT "
+        "fill the entire visible road. Typical of normal daytime hours.\n"
+        '- "heavy": a LONG, DENSE queue — vehicles packed bumper-to-bumper with '
+        "minimal gaps, filling most or all of the visible road span. Traffic is "
+        "stationary or barely crawling. Typical of peak-hour congestion only.\n\n"
+        "IMPORTANT:\n"
+        "- Only evaluate cars, motorcycles, and buses. Ignore large trucks, "
+        "container trucks, trailers, and lorries entirely.\n"
+        "- A queue of buses counts — buses are commuter traffic.\n"
+        "- A moving flow of vehicles, even if continuous, is moderate NOT heavy. "
+        "Reserve heavy for genuinely backed-up, dense, slow or stopped queues.\n"
+        "- Do NOT count vehicles parked in staging areas beside the road — "
+        "only judge vehicles actually on the travel lanes.\n\n"
         "Respond with JSON ONLY:\n"
         "{\n"
         '  "4703_jb_sg": {"status": "...", "note": "..."},\n'
