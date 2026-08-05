@@ -43,8 +43,10 @@ def check_and_notify():
             f"jbsglink.com/exchange-rate"
         )
         requests.post(f"{API}/sendMessage",
-                      json={"chat_id": a["chat_id"], "text": text,
-                            "parse_mode": "HTML"})
+                      json={"chat_id": a["chat_id"],
+                            "text": text,
+                            "parse_mode": "HTML",
+                            "disable_web_page_preview": True})
 
     if alerts:
         print(f"Notified {len(alerts)} alert(s), CIMB rate: {best_rate:.4f}")
