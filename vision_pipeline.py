@@ -97,13 +97,13 @@ def build_woodlands_prompt():
         "genuinely severe.\n\n"
         "Classify each as exactly one of:\n"
         '- "clear": road mostly empty, only a few scattered vehicles with '
-        "large gaps, no queue formation. Typical of late night / early morning.\n"
+        "large gaps, no queue formation.\n"
         '- "moderate": steady flow of vehicles that are visibly MOVING. A short '
         "queue may exist but vehicles maintain spacing and the queue does NOT "
-        "fill the entire visible road. Typical of normal daytime hours.\n"
+        "fill the entire visible road.\n"
         '- "heavy": a LONG, DENSE queue — vehicles packed bumper-to-bumper with '
         "minimal gaps, filling most or all of the visible road span. Traffic is "
-        "stationary or barely crawling. Typical of peak-hour congestion only.\n\n"
+        "stationary or barely crawling.\n\n"
         "IMPORTANT:\n"
         "- Only evaluate cars, motorcycles, and buses. Ignore large trucks, "
         "container trucks, trailers, and lorries entirely.\n"
@@ -137,13 +137,13 @@ def build_tuas_prompt():
         "genuinely severe.\n\n"
         "Classify each as exactly one of:\n"
         '- "clear": road mostly empty, only a few scattered vehicles with '
-        "large gaps, no queue formation. Typical of late night / early morning.\n"
+        "large gaps, no queue formation.\n"
         '- "moderate": steady flow of vehicles that are visibly MOVING. A short '
         "queue may exist but vehicles maintain spacing and the queue does NOT "
-        "fill the entire visible road. Typical of normal daytime hours.\n"
+        "fill the entire visible road.\n"
         '- "heavy": a LONG, DENSE queue — vehicles packed bumper-to-bumper with '
         "minimal gaps, filling most or all of the visible road span. Traffic is "
-        "stationary or barely crawling. Typical of peak-hour congestion only.\n\n"
+        "stationary or barely crawling.\n\n"
         "IMPORTANT:\n"
         "- Only evaluate cars, motorcycles, and buses. Ignore large trucks, "
         "container trucks, trailers, and lorries entirely.\n"
