@@ -9,9 +9,8 @@ sb = create_client(os.environ["SUPABASE_URL"],
 
 
 def check_and_notify():
-    # Get latest best rate from your exchange_rates table
     latest = sb.table("exchange_rates") \
-        .select("*") \
+        .select("cimb, fetched_at") \
         .order("fetched_at", desc=True) \
         .limit(1).execute().data
 
@@ -19,20 +18,13 @@ def check_and_notify():
         return
 
     row = latest[0]
-    # Pick the best rate across platforms
-    platforms = {
-        "Wise": row.get("wise"),
-        "CIMB": row.get("cimb"),
-        "Panda Remit": row.get("panda_remit"),
-        "Instarem": row.get("instarem"),
-        "Western Union": row.get("western_union"),
-    }
-    valid = {k: float(v) for k, v in platforms.items() if v}
-    if not valid:
+    best_platform = "CIMB"
+    best_rate = row.get("cimb")
+
+    if not best_rate:
         return
 
-    best_platform = max(valid, key=valid.get)
-    best_rate = valid[best_platform]
+    best_rate = float(best_rate)
 
     # Find alerts that should fire
     alerts = sb.table("telegram_alerts") \
@@ -46,7 +38,7 @@ def check_and_notify():
     for a in alerts:
         text = (
             f"SGD → MYR rate hit your target\n\n"
-            f"Best rate: <b>{best_rate:.4f}</b> via {best_platform}\n"
+            f"CIMB rate: <b>{best_rate:.4f}</b>\n"
             f"Your target: {float(a['target_rate']):.4f}\n\n"
             f"jbsglink.com/tools/exchange-rate"
         )
