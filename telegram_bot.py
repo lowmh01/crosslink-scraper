@@ -5,7 +5,7 @@ from supabase import create_client
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 sb = create_client(os.environ["SUPABASE_URL"],
-                   os.environ["SUPABASE_SERVICE_KEY"])
+                   os.environ["SUPABASE__KEY"])
 
 
 def process_updates():
