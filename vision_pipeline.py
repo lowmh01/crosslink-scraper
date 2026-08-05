@@ -95,21 +95,20 @@ def build_woodlands_prompt():
         "near the checkpoint entrance is NORMAL daytime activity — it does not "
         "automatically mean heavy. Only classify heavy when congestion is "
         "genuinely severe.\n\n"
-        "Classify each as exactly one of:\n"
+        "Classify each based on TWO visual axes — vehicle SPACING and queue "
+        "COVERAGE of the visible road. Do NOT guess whether vehicles are moving "
+        "or stopped — a static image cannot tell you that.\n\n"
         '- "clear": road mostly empty, only a few scattered vehicles with '
-        "large gaps, no queue formation.\n"
-        '- "moderate": steady flow of vehicles that are visibly MOVING. A short '
-        "queue may exist but vehicles maintain spacing and the queue does NOT "
-        "fill the entire visible road.\n"
-        '- "heavy": a LONG, DENSE queue — vehicles packed bumper-to-bumper with '
-        "minimal gaps, filling most or all of the visible road span. Traffic is "
-        "stationary or barely crawling.\n\n"
+        "large gaps between them.\n"
+        '- "moderate": vehicles present with visible spacing between them. '
+        "A queue may exist but does NOT fill the entire visible road span.\n"
+        '- "heavy": vehicles closely packed with minimal gaps between them, '
+        "queue fills most or all of the visible road span.\n\n"
         "IMPORTANT:\n"
         "- Only evaluate cars, motorcycles, and buses. Ignore large trucks, "
         "container trucks, trailers, and lorries entirely.\n"
         "- A queue of buses counts — buses are commuter traffic.\n"
-        "- A moving flow of vehicles, even if continuous, is moderate NOT heavy. "
-        "Reserve heavy for genuinely backed-up, dense, slow or stopped queues.\n\n"
+        "- Judge ONLY what you see: density and coverage. Never infer speed.\n\n"
         "Respond with JSON ONLY:\n"
         "{\n"
         '  "2701_jb_sg": {"status": "...", "note": "..."},\n'
@@ -135,21 +134,20 @@ def build_tuas_prompt():
         "near the checkpoint entrance is NORMAL daytime activity — it does not "
         "automatically mean heavy. Only classify heavy when congestion is "
         "genuinely severe.\n\n"
-        "Classify each as exactly one of:\n"
+        "Classify each based on TWO visual axes — vehicle SPACING and queue "
+        "COVERAGE of the visible road. Do NOT guess whether vehicles are moving "
+        "or stopped — a static image cannot tell you that.\n\n"
         '- "clear": road mostly empty, only a few scattered vehicles with '
-        "large gaps, no queue formation.\n"
-        '- "moderate": steady flow of vehicles that are visibly MOVING. A short '
-        "queue may exist but vehicles maintain spacing and the queue does NOT "
-        "fill the entire visible road.\n"
-        '- "heavy": a LONG, DENSE queue — vehicles packed bumper-to-bumper with '
-        "minimal gaps, filling most or all of the visible road span. Traffic is "
-        "stationary or barely crawling.\n\n"
+        "large gaps between them.\n"
+        '- "moderate": vehicles present with visible spacing between them. '
+        "A queue may exist but does NOT fill the entire visible road span.\n"
+        '- "heavy": vehicles closely packed with minimal gaps between them, '
+        "queue fills most or all of the visible road span.\n\n"
         "IMPORTANT:\n"
         "- Only evaluate cars, motorcycles, and buses. Ignore large trucks, "
         "container trucks, trailers, and lorries entirely.\n"
         "- A queue of buses counts — buses are commuter traffic.\n"
-        "- A moving flow of vehicles, even if continuous, is moderate NOT heavy. "
-        "Reserve heavy for genuinely backed-up, dense, slow or stopped queues.\n"
+        "- Judge ONLY what you see: density and coverage. Never infer speed.\n"
         "- Do NOT count vehicles parked in staging areas beside the road — "
         "only judge vehicles actually on the travel lanes.\n\n"
         "Respond with JSON ONLY:\n"
