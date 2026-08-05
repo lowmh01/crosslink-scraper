@@ -50,6 +50,22 @@ VALID = {"clear", "moderate", "heavy"}
 WANTED_CAMERAS = {"2701", "2702", "4703", "4713"}
 
 
+CLASSIFICATION_CRITERIA = (
+    "Classify each based on TWO visual axes — vehicle SPACING and queue "
+    "COVERAGE of the visible road. Do NOT guess whether vehicles are moving "
+    "or stopped — a static image cannot tell you that.\n\n"
+    '- "clear": road mostly empty, only a few scattered vehicles with '
+    "large gaps between them.\n"
+    '- "moderate": a queue of vehicles is visible, but you can still '
+    "distinguish individual vehicles and see road surface between them. "
+    "The queue may be long but vehicles are not bumper-to-bumper.\n"
+    '- "heavy": vehicles so densely packed that headlights or taillights '
+    "merge into a near-continuous stream. Road surface is barely visible "
+    "between vehicles. Reserve heavy for extreme congestion only — "
+    "a long queue with visible spacing between cars is moderate, not heavy.\n\n"
+)
+
+
 def crop_2701_jb_sg(img_bytes):
     """Extract the jb_sg carriageway from 2701 (below the diagonal line)."""
     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
@@ -95,15 +111,7 @@ def build_woodlands_prompt():
         "near the checkpoint entrance is NORMAL daytime activity — it does not "
         "automatically mean heavy. Only classify heavy when congestion is "
         "genuinely severe.\n\n"
-        "Classify each based on TWO visual axes — vehicle SPACING and queue "
-        "COVERAGE of the visible road. Do NOT guess whether vehicles are moving "
-        "or stopped — a static image cannot tell you that.\n\n"
-        '- "clear": road mostly empty, only a few scattered vehicles with '
-        "large gaps between them.\n"
-        '- "moderate": vehicles present with visible spacing between them. '
-        "A queue may exist but does NOT fill the entire visible road span.\n"
-        '- "heavy": vehicles closely packed with minimal gaps between them, '
-        "queue fills most or all of the visible road span.\n\n"
+        + CLASSIFICATION_CRITERIA +
         "IMPORTANT:\n"
         "- Only evaluate cars, motorcycles, and buses. Ignore large trucks, "
         "container trucks, trailers, and lorries entirely.\n"
@@ -134,15 +142,7 @@ def build_tuas_prompt():
         "near the checkpoint entrance is NORMAL daytime activity — it does not "
         "automatically mean heavy. Only classify heavy when congestion is "
         "genuinely severe.\n\n"
-        "Classify each based on TWO visual axes — vehicle SPACING and queue "
-        "COVERAGE of the visible road. Do NOT guess whether vehicles are moving "
-        "or stopped — a static image cannot tell you that.\n\n"
-        '- "clear": road mostly empty, only a few scattered vehicles with '
-        "large gaps between them.\n"
-        '- "moderate": vehicles present with visible spacing between them. '
-        "A queue may exist but does NOT fill the entire visible road span.\n"
-        '- "heavy": vehicles closely packed with minimal gaps between them, '
-        "queue fills most or all of the visible road span.\n\n"
+        + CLASSIFICATION_CRITERIA +
         "IMPORTANT:\n"
         "- Only evaluate cars, motorcycles, and buses. Ignore large trucks, "
         "container trucks, trailers, and lorries entirely.\n"
