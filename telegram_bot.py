@@ -26,14 +26,14 @@ def process_updates():
                  "JB-SG Link Rate Alert\n\n"
                  "Set a target SGD→MYR rate and get notified.\n\n"
                  "Usage:\n"
-                 "/alert 3.42  — notify when best rate ≥ 3.42\n"
+                 "/alert 3.18  — notify when best rate ≥ 3.18\n"
                  "/status      — check your active alerts\n"
                  "/stop        — cancel all alerts")
 
         elif text.startswith("/alert"):
             parts = text.split()
             if len(parts) != 2:
-                send(chat_id, "Format: /alert 3.42")
+                send(chat_id, "Format: /alert 3.18")
                 continue
             try:
                 target = round(float(parts[1]), 4)
@@ -59,7 +59,7 @@ def process_updates():
                 .eq("is_active", True) \
                 .execute().data
             if not rows:
-                send(chat_id, "No active alerts. Use /alert 3.42 to set one.")
+                send(chat_id, "No active alerts. Use /alert 3.18 to set one.")
             else:
                 lines = [f"  {r['target_rate']:.4f}" for r in rows]
                 send(chat_id, "Active alerts:\n" + "\n".join(lines))
