@@ -40,7 +40,7 @@ def check_and_notify():
             f"Your target: {float(a['target_rate']):.4f}\n\n"
             f"You will keep getting notified while the rate stays above your target.\n"
             f"Send /stop to pause notifications.\n\n"
-            f"jbsglink.com/tools/exchange-rate"
+            f"jbsglink.com/exchange-rate"
         )
         requests.post(f"{API}/sendMessage",
                       json={"chat_id": a["chat_id"], "text": text,
