@@ -18,7 +18,6 @@ def check_and_notify():
         return
 
     row = latest[0]
-    best_platform = "CIMB"
     best_rate = row.get("cimb")
 
     if not best_rate:
@@ -26,29 +25,31 @@ def check_and_notify():
 
     best_rate = float(best_rate)
 
-    # Find alerts that should fire
+    # Find all active alerts where target has been reached
     alerts = sb.table("telegram_alerts") \
         .select("id, chat_id, target_rate") \
         .eq("is_active", True) \
         .eq("direction", "above") \
         .lte("target_rate", best_rate) \
-        .is_("triggered_at", "null") \
         .execute().data
 
     for a in alerts:
         text = (
-            f"SGD → MYR rate hit your target\n\n"
+            f"CIMB SGD → MYR hit your target\n\n"
             f"CIMB rate: <b>{best_rate:.4f}</b>\n"
             f"Your target: {float(a['target_rate']):.4f}\n\n"
+            f"You will keep getting notified while the rate stays above your target.\n"
+            f"Send /stop to pause notifications.\n\n"
             f"jbsglink.com/tools/exchange-rate"
         )
         requests.post(f"{API}/sendMessage",
                       json={"chat_id": a["chat_id"], "text": text,
                             "parse_mode": "HTML"})
 
-        sb.table("telegram_alerts") \
-            .update({"triggered_at": "now()"}) \
-            .eq("id", a["id"]).execute()
+    if alerts:
+        print(f"Notified {len(alerts)} alert(s), CIMB rate: {best_rate:.4f}")
+    else:
+        print(f"No alerts triggered, CIMB rate: {best_rate:.4f}")
 
 
 if __name__ == "__main__":
