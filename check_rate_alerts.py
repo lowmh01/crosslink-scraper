@@ -81,6 +81,8 @@ def check_and_notify():
             f"CIMB rate: <b>{best_rate:.4f}</b>\n"
             f"Your target: {float(a['target_rate']):.4f}\n\n"
             f"jbsglink.com/exchange-rate\n\n"
+            f"Change target · 直接输入新汇率，如 3.20\n"
+            f"Send /stop to stop · 发送 /stop 停止通知\n\n"
             f"———\n"
             f"觉得实用？转发给在 SG 打工的朋友和家人\n"
             f"Free rate alert → @{BOT_USERNAME}"
