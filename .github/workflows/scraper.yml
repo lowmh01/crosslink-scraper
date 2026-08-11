@@ -18,7 +18,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install playwright requests python-dotenv supabase
+          pip install playwright requests python-dotenv supabase aiohttp
           playwright install chromium
           playwright install-deps chromium
 
