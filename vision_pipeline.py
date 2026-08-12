@@ -66,8 +66,9 @@ CLASSIFICATION_CRITERIA = (
     "A dense queue that fills the lanes counts as heavy.\n\n"
     "NIGHT-TIME NOTE: headlight glow can make a queue appear denser than it "
     "really is. At night, count distinct pairs of headlights to judge "
-    "spacing — if you can tell individual vehicles apart by their lights, "
-    "it is moderate, not heavy.\n\n"
+    "spacing — if you can count individual vehicles by their lights — even if "
+    "the glow overlaps — it is moderate, not heavy. At night, ERR "
+    "TOWARD MODERATE when in doubt.\n\n"
 )
 
 
