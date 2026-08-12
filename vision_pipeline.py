@@ -59,16 +59,16 @@ CLASSIFICATION_CRITERIA = (
     '- "moderate": a queue of vehicles is visible, but you can still '
     "distinguish individual vehicles and see road surface between them. "
     "The queue may be long but vehicles are not bumper-to-bumper.\n"
-    '- "heavy": vehicles so densely packed that headlights or taillights '
-    "merge into a near-continuous stream. Road surface is barely visible "
-    "between vehicles. Reserve heavy for extreme congestion only — "
-    "a long queue with visible spacing between cars is moderate, not heavy.\n\n"
+    '- "heavy": vehicles tightly packed with minimal gaps between them — '
+    "you may still see individual rooftops or colours, but the spacing "
+    "between vehicles is less than one car length across most of the queue. "
+    "Road surface between vehicles is mostly hidden by vehicle bodies. "
+    "A dense queue that fills the lanes counts as heavy.\n\n"
     "NIGHT-TIME NOTE: headlight glow can make a queue appear denser than it "
     "really is. At night, count distinct pairs of headlights to judge "
     "spacing — if you can tell individual vehicles apart by their lights, "
     "it is moderate, not heavy.\n\n"
 )
-
 
 def crop_2701_jb_sg(img_bytes):
     """Extract the jb_sg carriageway from 2701 (below the diagonal line)."""
