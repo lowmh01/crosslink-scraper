@@ -70,6 +70,7 @@ CLASSIFICATION_CRITERIA = (
     "it is moderate, not heavy.\n\n"
 )
 
+
 def crop_2701_jb_sg(img_bytes):
     """Extract the jb_sg carriageway from 2701 (below the diagonal line)."""
     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
@@ -185,7 +186,7 @@ def call_gemini(image_bytes_list, prompt_text):
 
     body = {
         "contents": [{"parts": parts}],
-        "generationConfig": {"maxOutputTokens": 800, "responseMimeType": "application/json"},
+        "generationConfig": {"maxOutputTokens": 800, "responseMimeType": "application/json", "temperature": 0},
     }
     r = requests.post(GEMINI_URL, params={
                       "key": os.environ["GEMINI_API_KEY"]}, json=body, timeout=60)
