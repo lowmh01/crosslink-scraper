@@ -44,7 +44,7 @@ CROP_4703_DIVIDER = [
 ]
 
 LTA_IMAGES_URL = "https://datamall2.mytransport.sg/ltaodataservice/Traffic-Imagesv2"
-GEMINI_MODEL = "gemini-2.5-flash-lite"
+GEMINI_MODEL = "gemini-3.1-flash-lite"
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 VALID = {"clear", "moderate", "heavy"}
 WANTED_CAMERAS = {"2701", "2702", "4703", "4713"}
