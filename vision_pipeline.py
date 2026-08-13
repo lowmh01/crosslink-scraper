@@ -51,17 +51,21 @@ WANTED_CAMERAS = {"2701", "2702", "4703", "4713"}
 
 
 CLASSIFICATION_CRITERIA = (
-    "Classify each based on TWO visual axes — vehicle SPACING and queue "
-    "COVERAGE of the visible road. Do NOT guess whether vehicles are moving "
-    "or stopped — a static image cannot tell you that.\n\n"
-    '- "clear": road mostly empty, only a few scattered vehicles with '
-    "large gaps between them.\n"
-    '- "moderate": a queue of vehicles is visible, but you can still '
-    "distinguish individual vehicles and see road surface between them. "
-    "The queue may be long but vehicles are not bumper-to-bumper.\n"
-    '- "heavy": vehicles tightly packed with minimal gaps between them — '
-    "you may still see individual rooftops or colours, but the spacing "
-    "between vehicles is less than one car length across most of the queue. "
+    "STEP 1 — EXCLUDE NON-COMMUTER VEHICLES FIRST:\n"
+    "Mentally remove ALL large trucks, container trucks, tankers, trailers, "
+    "and lorries from the scene. They are NOT commuter traffic and must NOT "
+    "affect your classification. Only cars, motorcycles, and buses count.\n\n"
+    "STEP 2 — CLASSIFY the remaining commuter vehicles based on TWO axes — "
+    "vehicle SPACING and queue COVERAGE of the visible road. Do NOT guess "
+    "whether vehicles are moving or stopped — a static image cannot tell "
+    "you that.\n\n"
+    '- "clear": road mostly empty, only a few scattered commuter vehicles '
+    "with large gaps between them.\n"
+    '- "moderate": a queue of commuter vehicles is visible, but you can '
+    "still distinguish individual vehicles and see road surface between "
+    "them. The queue may be long but vehicles are not bumper-to-bumper.\n"
+    '- "heavy": commuter vehicles tightly packed with minimal gaps — '
+    "spacing less than one car length across most of the queue. "
     "Road surface between vehicles is mostly hidden by vehicle bodies. "
     "A dense queue that fills the lanes counts as heavy.\n\n"
     "NIGHT-TIME NOTE: headlight glow can make a queue appear denser than it "
